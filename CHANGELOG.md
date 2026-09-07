@@ -19,5 +19,13 @@
 - Full lifecycle UI (post → claim → submit → AI jury → verdict → withdraw/appeal), consensus
   loading states, prominent AI `reason` display, Explorer links, reputation badges.
 
+### Verified on studionet
+- Deployed at `0x727Ba3DBB6683c04c34B795fbdAF269e917b01A4`. Full lifecycle exercised on-chain:
+  create → claim → submit → real `run_nondet` adjudication → verdict → withdraw.
+- Fixed: `withdraw` now transfers native GEN to EOAs via the EVM contract interface (the
+  previous `emit_transfer` on `get_contract_at` was a silent no-op on studionet).
+- Fixed: the jury prompt now presumes genuineness and requires concrete evidence for a fraud
+  verdict — validated across GENUINE / AI_GENERATED / PLAGIARIZED deliverables.
+
 ### Docs
 - README (problem, architecture, consensus explanation, rubric mapping), `scripts/deploy/DEPLOY.md`.

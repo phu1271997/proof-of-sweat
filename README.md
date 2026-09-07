@@ -111,10 +111,14 @@ Full walkthrough in [`scripts/deploy/DEPLOY.md`](scripts/deploy/DEPLOY.md). Shor
 | | |
 |---|---|
 | **Network** | GenLayer **studionet** (Studio hosted) — Explorer status: **Preview** |
-| **Contract address** | `TO BE FILLED after deploy` |
-| **Explorer** | `https://genlayer-explorer.vercel.app/address/<contract>` |
+| **Contract address** | `0x727Ba3DBB6683c04c34B795fbdAF269e917b01A4` |
+| **Explorer** | https://genlayer-explorer.vercel.app/address/0x727Ba3DBB6683c04c34B795fbdAF269e917b01A4 |
 | **Live app** | `TO BE FILLED (Vercel URL)` |
 | **Demo video** | `TO BE FILLED` |
+
+Verified end-to-end on studionet: the AI jury correctly rules **GENUINE** (original
+first-person work → worker paid), **AI_GENERATED** (hollow boilerplate → rejected), and
+**PLAGIARIZED** (copied MDN page, caught by its embedded site chrome → rejected).
 
 ## One-line pitch
 
