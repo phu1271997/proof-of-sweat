@@ -25,7 +25,7 @@ export async function ensureStudionet() {
             chainName: studionet.name,
             nativeCurrency: studionet.nativeCurrency,
             rpcUrls: studionet.rpcUrls.default.http,
-            blockExplorerUrls: [studionet.blockExplorers?.default?.url].filter(Boolean),
+            blockExplorerUrls: ['https://explorer-studio.genlayer.com'],
           },
         ],
       });

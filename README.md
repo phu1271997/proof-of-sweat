@@ -112,7 +112,7 @@ Full walkthrough in [`scripts/deploy/DEPLOY.md`](scripts/deploy/DEPLOY.md). Shor
 |---|---|
 | **Network** | GenLayer **studionet** (Studio hosted) — Explorer status: **Preview** |
 | **Contract address** | `0x727Ba3DBB6683c04c34B795fbdAF269e917b01A4` |
-| **Explorer** | https://genlayer-explorer.vercel.app/address/0x727Ba3DBB6683c04c34B795fbdAF269e917b01A4 |
+| **Explorer** | https://explorer-studio.genlayer.com/address/0x727Ba3DBB6683c04c34B795fbdAF269e917b01A4 |
 | **Live app** | https://proof-of-sweat-gl.vercel.app |
 | **Repo** | https://github.com/phu1271997/proof-of-sweat |
 | **Demo video** | `TO BE FILLED` |
