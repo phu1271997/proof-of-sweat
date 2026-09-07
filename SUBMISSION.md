@@ -57,27 +57,29 @@ Deciding whether a deliverable is genuine human effort or AI slop is a subjectiv
 
 ## How to try it
 
-**Before you start:** just looking around needs nothing, no wallet and no sign-up. To try it hands-on, install the MetaMask browser extension and get a little GEN (free test tokens) on the GenLayer studio network.
+**Before you start:** to just look around, open the site, no wallet needed. To try it hands-on, connect MetaMask with a little GEN on the GenLayer studio network.
 
-**Step 1 — Look at the results.**
-Open the site and scroll the list of tasks. Click any task to see how the AI judged the work, and why, in plain language.
+**Step 1 — Connect.**
+Open the app, click "Connect MetaMask", and approve the switch to the GenLayer studio network.
 
-**Step 2 — Connect (only if you want to try it yourself).**
-Click "Connect MetaMask" and approve.
+**Step 2 — Claim a task.**
+Open a task marked "Open" and click "Claim & stake". You are now the worker.
 
-**Step 3 — Let the AI judge a task.**
-Open the task marked "awaiting jury" and click "Run the AI jury". Wait a moment for the result to appear.
-
-**Step 4 — Submit your own work.**
-Open the task marked "open", click "Claim", then paste this link as the delivered work:
+**Step 3 — Submit your work.**
+Click "Submit for review" and paste a public link to the delivered work. Sample link:
 `https://gist.githubusercontent.com/phu1271997/47971261102d0a27411673f960d7fabe/raw/497e1ccd1acfac618916aa47ca64d10942d7736f/deliverable.md`
 
+**Step 4 — Run the AI jury.**
+Click "Run the AI jury" and wait a moment. The AI reads your work and returns a verdict with its reasoning.
+
 **Step 5 — Get paid.**
-Click "Run the AI jury". If it decides the work is genuine, click "Withdraw" to receive the reward.
+If the verdict is Genuine, click "Withdraw" to receive the reward plus your stake.
 
-**What you'll see:** the AI decides whether the work is real and explains its reasoning. Genuine work gets paid; fake or copied work does not.
+**Want to see it fail?** In step 3, submit an AI-written or copied page instead; the verdict comes back AI-generated or Plagiarized and no payment is released. The worker can then click "Appeal".
 
-**If you get stuck:** if no result appears, click "Run the AI jury" once more. If MetaMask shows a warning, it is a false alarm, the app is safe to use.
+**Prefer to post a task?** Use the "Post a bounty" tab, fill in the details (or click "use sample"), and click "Escrow reward & post". A different wallet then claims and submits.
+
+**If you get stuck:** if no result appears, click "Run the AI jury" once more. A MetaMask site warning is a false alarm; the app is safe.
 
 ---
 
