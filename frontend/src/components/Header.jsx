@@ -8,7 +8,7 @@ export default function Header({ account, balance, credit, onConnect, onDisconne
   return (
     <header className="site-header">
       <a className="brand" {...linkProps('/')}>
-        <div className="brand-mark">PoS</div>
+        <img className="brand-mark" src="/logo.png" alt="Proof of Sweat" />
         <div className="brand-text">
           <div className="brand-name">PROOF <span>OF</span> SWEAT</div>
           <div className="brand-tag">work verified by AI consensus</div>

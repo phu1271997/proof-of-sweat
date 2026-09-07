@@ -42,11 +42,7 @@ html { scroll-behavior: smooth; }
   border-bottom-color: var(--border);
 }
 .ld-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); }
-.ld-brand-mark {
-  display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px;
-  font-family: var(--font-mono); font-size: 12px; font-weight: 600; color: #04222e;
-  background: linear-gradient(135deg, var(--cyan), #7fe3ff);
-}
+.ld-brand-mark { width: 30px; height: 30px; object-fit: contain; display: block; }
 .ld-brand-name { font-weight: 700; font-size: 16px; letter-spacing: -0.2px; }
 .ld-nav-links { display: flex; gap: 26px; margin-left: 12px; }
 .ld-nav-links a { color: var(--muted); font-size: 14px; font-weight: 500; text-decoration: none; }

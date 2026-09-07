@@ -66,7 +66,7 @@ function Nav() {
   return (
     <nav className={`ld-nav ${scrolled ? 'is-scrolled' : ''}`}>
       <a className="ld-brand" {...linkProps('/')}>
-        <span className="ld-brand-mark">PoS</span>
+        <img className="ld-brand-mark" src="/logo.png" alt="Proof of Sweat" />
         <span className="ld-brand-name">Proof of Sweat</span>
       </a>
       <div className="ld-nav-links">
@@ -394,7 +394,7 @@ function Footer() {
   return (
     <footer className="ld-footer">
       <div className="ld-footer-brand">
-        <span className="ld-brand-mark">PoS</span>
+        <img className="ld-brand-mark" src="/logo.png" alt="Proof of Sweat" />
         <span>Proof of Sweat</span>
       </div>
       <div className="ld-footer-links">
