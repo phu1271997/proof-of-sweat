@@ -93,6 +93,9 @@ export default function App() {
       const { hash } = await send(account, 'withdraw', [], 0n, (msg) => notify({ tone: 'info', msg, busy: true }));
       notify({ tone: 'success', msg: 'Withdrawn to your wallet.', hash });
       await refresh();
+      // The EOA payout is an external message that settles just after the receipt;
+      // refresh the balance again shortly so it reflects the incoming GEN.
+      setTimeout(() => { if (account) loadAccountData(account); }, 6000);
     } catch (e) {
       notify({ tone: 'error', msg: friendly(e) });
     } finally {

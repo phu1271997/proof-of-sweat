@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, Button, Badge, Meter, Field } from './ui.jsx';
 import { STATUS, VERDICT, formatGen, shortAddr, sameAddr, EXPLORER } from '../lib/format.js';
-import { send, fetchReputation } from '../lib/genlayer.js';
+import { send, fetchReputation, fetchBounty } from '../lib/genlayer.js';
 import { friendly } from './CreateBounty.jsx';
 
 export default function BountyModal({ bounty, account, onClose, onRefresh, notify }) {
@@ -30,7 +30,18 @@ export default function BountyModal({ bounty, account, onClose, onRefresh, notif
       const { hash } = await send(account, fn, args, value ?? 0n, (msg) =>
         notify({ tone: 'info', msg, busy: true }),
       );
-      notify({ tone: 'success', msg: okMsg, hash });
+      if (fn === 'adjudicate') {
+        // Non-deterministic rounds can come back undetermined; the state won't
+        // have advanced. Tell the user to re-run rather than claiming a verdict.
+        const fresh = await fetchBounty(b.id);
+        if (fresh && (fresh.status === 2 || fresh.status === 5)) {
+          notify({ tone: 'info', msg: 'Validators were undetermined this round — click “Run the AI jury” again.' });
+        } else {
+          notify({ tone: 'success', msg: fresh?.verdict ? `AI jury verdict: ${fresh.verdict}.` : okMsg, hash });
+        }
+      } else {
+        notify({ tone: 'success', msg: okMsg, hash });
+      }
       await onRefresh?.();
     } catch (err) {
       notify({ tone: 'error', msg: friendly(err) });
