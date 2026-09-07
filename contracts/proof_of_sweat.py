@@ -38,6 +38,19 @@ S_CANCELLED = 7     # client cancelled an unclaimed bounty (terminal)
 _MAX_EVIDENCE_CHARS = 8000
 
 
+@gl.evm.contract_interface
+class _Recipient:
+    # Sending native GEN to an EOA on the chain layer is an "external message"
+    # routed through the IC's ghost contract. Per GenLayer docs this uses the EVM
+    # contract interface even though the recipient is a plain address, and value
+    # transfers to EOAs are the one EVM interaction Studio does support.
+    class View:
+        pass
+
+    class Write:
+        pass
+
+
 def _addr_str(addr: Address) -> str:
     """Convert an Address to a stable hex string, defensively across builds."""
     try:
@@ -346,8 +359,8 @@ Reply with ONLY a JSON object, no prose:
             raise gl.vm.UserError("nothing to withdraw")
         # Pull-payment: zero the balance before transferring (reentrancy-safe).
         self.credits[addr] = bigint(0)
-        # Native GEN transfer. See README if this errors on your Studio build.
-        gl.get_contract_at(recipient).emit_transfer(value=u256(amount))
+        # Native GEN transfer to the caller's EOA via the chain-layer external message.
+        _Recipient(Address(addr)).emit_transfer(value=u256(amount))
 
     # ── views ─────────────────────────────────────────────────────────────────
     def _get(self, bounty_id: str) -> Bounty:
