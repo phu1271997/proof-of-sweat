@@ -1,18 +1,19 @@
 import React from 'react';
 import { Button, Spinner } from './ui.jsx';
 import { formatGen, shortAddr } from '../lib/format.js';
+import { linkProps } from '../lib/nav.js';
 
 export default function Header({ account, balance, credit, onConnect, onWithdraw, connecting, withdrawing }) {
   const hasCredit = credit && BigInt(credit) > 0n;
   return (
     <header className="site-header">
-      <div className="brand">
-        <div className="brand-mark">💧</div>
+      <a className="brand" {...linkProps('/')}>
+        <div className="brand-mark">PoS</div>
         <div className="brand-text">
           <div className="brand-name">PROOF <span>OF</span> SWEAT</div>
-          <div className="brand-tag">work verified by AI consensus · GenLayer</div>
+          <div className="brand-tag">work verified by AI consensus</div>
         </div>
-      </div>
+      </a>
 
       <div className="header-right">
         {account ? (
