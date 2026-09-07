@@ -6,6 +6,25 @@ export function hasMetaMask() {
   return typeof window !== 'undefined' && !!window.ethereum;
 }
 
+// Remember an explicit disconnect so we don't silently auto-reconnect on reload.
+const DISCONNECT_KEY = 'pos_wallet_disconnected';
+export function isDisconnected() {
+  try { return localStorage.getItem(DISCONNECT_KEY) === '1'; } catch { return false; }
+}
+function setDisconnected(v) {
+  try { v ? localStorage.setItem(DISCONNECT_KEY, '1') : localStorage.removeItem(DISCONNECT_KEY); } catch {}
+}
+
+/** Forget the connection. Revokes account permission where MetaMask supports it. */
+export async function disconnectWallet() {
+  setDisconnected(true);
+  try {
+    await window.ethereum?.request({ method: 'wallet_revokePermissions', params: [{ eth_accounts: {} }] });
+  } catch {
+    // older MetaMask has no revoke; the local flag still disconnects the app
+  }
+}
+
 /** Ensure MetaMask is on studionet, adding the network if it isn't there yet. */
 export async function ensureStudionet() {
   if (!hasMetaMask()) throw new Error('MetaMask not found');
@@ -39,12 +58,13 @@ export async function ensureStudionet() {
 export async function connectWallet() {
   if (!hasMetaMask()) throw new Error('MetaMask not found');
   const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+  setDisconnected(false);
   await ensureStudionet();
   return accounts[0];
 }
 
 export async function getConnectedAddress() {
-  if (!hasMetaMask()) return null;
+  if (!hasMetaMask() || isDisconnected()) return null;
   const accounts = await window.ethereum.request({ method: 'eth_accounts' });
   return accounts && accounts.length ? accounts[0] : null;
 }

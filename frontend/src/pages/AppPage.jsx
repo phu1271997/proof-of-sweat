@@ -7,7 +7,7 @@ import { Toast, Empty, Button, Spinner } from '../components/ui.jsx';
 import {
   fetchBounties, fetchConfig, fetchCredit, fetchNativeBalance, send, contractConfigured, CONTRACT,
 } from '../lib/genlayer.js';
-import { connectWallet, getConnectedAddress, onWalletEvents, hasMetaMask } from '../lib/wallet.js';
+import { connectWallet, disconnectWallet, getConnectedAddress, onWalletEvents, hasMetaMask } from '../lib/wallet.js';
 import { EXPLORER } from '../lib/format.js';
 
 export default function AppPage() {
@@ -85,6 +85,14 @@ export default function AppPage() {
     }
   }
 
+  async function disconnect() {
+    await disconnectWallet();
+    setAccount(null);
+    setBalance(null);
+    setCredit('0');
+    notify({ tone: 'info', msg: 'Wallet disconnected.' });
+  }
+
   async function withdraw() {
     setWithdrawing(true);
     try {
@@ -109,6 +117,7 @@ export default function AppPage() {
         balance={balance}
         credit={credit}
         onConnect={connect}
+        onDisconnect={disconnect}
         onWithdraw={withdraw}
         connecting={connecting}
         withdrawing={withdrawing}

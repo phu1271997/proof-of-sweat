@@ -3,7 +3,7 @@ import { Button, Spinner } from './ui.jsx';
 import { formatGen, shortAddr } from '../lib/format.js';
 import { linkProps } from '../lib/nav.js';
 
-export default function Header({ account, balance, credit, onConnect, onWithdraw, connecting, withdrawing }) {
+export default function Header({ account, balance, credit, onConnect, onDisconnect, onWithdraw, connecting, withdrawing }) {
   const hasCredit = credit && BigInt(credit) > 0n;
   return (
     <header className="site-header">
@@ -30,6 +30,7 @@ export default function Header({ account, balance, credit, onConnect, onWithdraw
                 <span className="wallet-bal">{balance == null ? <Spinner size={10} /> : `${formatGen(balance)} GEN`}</span>
               </div>
             </div>
+            <button className="disconnect-btn" onClick={onDisconnect} title="Disconnect wallet">Disconnect</button>
           </>
         ) : (
           <Button onClick={onConnect} busy={connecting}>
