@@ -66,7 +66,7 @@ export default function CreateBounty({ account, onDone, notify }) {
       <Field label="Title">
         <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Short task name" maxLength={120} />
       </Field>
-      <Field label="Spec — what must be delivered" hint="Be specific: the jury judges the deliverable against this.">
+      <Field label="Spec: what must be delivered" hint="Be specific: the jury judges the deliverable against this.">
         <textarea value={spec} onChange={(e) => setSpec(e.target.value)} rows={4} placeholder="Describe exactly what genuine, on-spec work looks like." />
       </Field>
       <Field label="Rules" hint="e.g. no AI-generated content, must be original, no plagiarism.">
@@ -88,7 +88,7 @@ export default function CreateBounty({ account, onDone, notify }) {
 export function friendly(err) {
   const raw = err?.shortMessage || err?.details || err?.message || String(err);
   if (/user rejected|denied/i.test(raw)) return 'Signature rejected in MetaMask.';
-  if (/insufficient/i.test(raw)) return 'Insufficient GEN balance on studionet — fund your wallet from Studio → Accounts.';
+  if (/insufficient/i.test(raw)) return 'Insufficient GEN balance on studionet. Fund your wallet from Studio, Accounts panel.';
   if (/from/i.test(raw) && /rpc/i.test(raw)) return 'MetaMask is on the wrong network. Reconnect to switch to studionet.';
   // surface a UserError reason if present
   const m = raw.match(/UserError[^"]*"?([^"}]+)"?/);

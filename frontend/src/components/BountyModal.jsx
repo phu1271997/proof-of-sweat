@@ -35,7 +35,7 @@ export default function BountyModal({ bounty, account, onClose, onRefresh, notif
         // have advanced. Tell the user to re-run rather than claiming a verdict.
         const fresh = await fetchBounty(b.id);
         if (fresh && (fresh.status === 2 || fresh.status === 5)) {
-          notify({ tone: 'info', msg: 'Validators were undetermined this round — click “Run the AI jury” again.' });
+          notify({ tone: 'info', msg: 'Validators were undetermined this round. Click “Run the AI jury” again.' });
         } else {
           notify({ tone: 'success', msg: fresh?.verdict ? `AI jury verdict: ${fresh.verdict}.` : okMsg, hash });
         }
@@ -69,7 +69,7 @@ export default function BountyModal({ bounty, account, onClose, onRefresh, notif
           <div className="dstat"><span>{formatGen(b.reward)}</span><label>GEN reward</label></div>
           <div className="dstat"><span>{formatGen(b.stake_required)}</span><label>GEN stake</label></div>
           <div className="dstat"><span className="mono small">{shortAddr(b.client)}</span><label>client</label></div>
-          <div className="dstat"><span className="mono small">{b.worker ? shortAddr(b.worker) : '—'}</span><label>worker</label></div>
+          <div className="dstat"><span className="mono small">{b.worker ? shortAddr(b.worker) : 'unclaimed'}</span><label>worker</label></div>
         </div>
 
         <section className="detail-block">
@@ -91,7 +91,7 @@ export default function BountyModal({ bounty, account, onClose, onRefresh, notif
           </section>
         )}
 
-        {/* AI verdict panel — the GenLayer moment */}
+        {/* AI verdict panel: the GenLayer moment */}
         {vd && (
           <section className={`verdict-panel tone-${vd.tone}`}>
             <div className="verdict-panel-top">

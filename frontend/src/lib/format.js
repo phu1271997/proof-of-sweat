@@ -34,7 +34,7 @@ export function formatGen(wei, maxFrac = 4) {
 }
 
 export function shortAddr(addr) {
-  if (!addr) return '—';
+  if (!addr) return '·';
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 
