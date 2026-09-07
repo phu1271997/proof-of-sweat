@@ -57,32 +57,27 @@ Deciding whether a deliverable is genuine human effort or AI slop is a subjectiv
 
 ## How to try it
 
-**Prerequisites**
-- A browser. Reading the board and every verdict needs no wallet.
-- To transact (claim, run the jury, appeal, withdraw): MetaMask with a little GEN on GenLayer studionet.
+**Before you start:** just looking around needs nothing, no wallet and no sign-up. To try it hands-on, install the MetaMask browser extension and get a little GEN (free test tokens) on the GenLayer studio network.
 
-**Step 1 — Read settled verdicts (no wallet).**
-Open the app and scroll the bounty board. Open the GENUINE, AI_GENERATED, and PLAGIARIZED bounties to read the AI's own on-chain reasoning and its confidence and spec-match scores.
+**Step 1 — Look at the results.**
+Open the site and scroll the list of tasks. Click any task to see how the AI judged the work, and why, in plain language.
 
-**Step 2 — Connect.**
-Click Connect MetaMask and approve the switch to GenLayer studionet.
+**Step 2 — Connect (only if you want to try it yourself).**
+Click "Connect MetaMask" and approve.
 
-**Step 3 — Run the AI jury.**
-Open the bounty labelled "awaiting jury" and click Run the AI jury. Wait for validator consensus; a verdict appears on the card.
+**Step 3 — Let the AI judge a task.**
+Open the task marked "awaiting jury" and click "Run the AI jury". Wait a moment for the result to appear.
 
-**Step 4 — Claim and submit genuine work.**
-Open the "open" bounty, click Claim & stake 1 GEN, then submit this deliverable URL:
+**Step 4 — Submit your own work.**
+Open the task marked "open", click "Claim", then paste this link as the delivered work:
 `https://gist.githubusercontent.com/phu1271997/47971261102d0a27411673f960d7fabe/raw/497e1ccd1acfac618916aa47ca64d10942d7736f/deliverable.md`
 
 **Step 5 — Get paid.**
-Click Run the AI jury. On a GENUINE verdict, click Withdraw to receive the reward plus your stake.
+Click "Run the AI jury". If it decides the work is genuine, click "Withdraw" to receive the reward.
 
-**Expected end state:** a GENUINE verdict with a written reason, and GEN credited then withdrawn to your wallet.
+**What you'll see:** the AI decides whether the work is real and explains its reasoning. Genuine work gets paid; fake or copied work does not.
 
-**If something goes wrong:**
-- Consensus undetermined (state did not change): click Run the AI jury again.
-- Wrong network: reconnect to switch to studionet.
-- MetaMask shows a site warning: it is a Blockaid false positive. Reading needs no wallet; you can proceed to transact safely (the contract only escrows a bounty, it never requests draining signatures).
+**If you get stuck:** if no result appears, click "Run the AI jury" once more. If MetaMask shows a warning, it is a false alarm, the app is safe to use.
 
 ---
 
