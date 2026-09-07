@@ -229,13 +229,16 @@ class Contract(gl.Contract):
                 }
             evidence = page[:_MAX_EVIDENCE_CHARS]
             strictness = (
-                "This is an APPEAL. Be even more rigorous and skeptical than a first pass; "
-                "look for subtle signs missed initially."
+                "This is an APPEAL of a prior fraud ruling. Re-examine carefully and overturn "
+                "to GENUINE if the earlier call was not backed by concrete evidence."
                 if is_appeal
                 else "This is the first review."
             )
-            prompt = f"""You are a strict, incorruptible work-authenticity auditor for a paid bounty.
+            prompt = f"""You are an impartial work-authenticity auditor for a paid bounty.
 {strictness}
+
+Presume the work is GENUINE. Only rule against it when you can point to CONCRETE evidence.
+A fair, honest worker must be paid; do not punish competent writing for merely being polished.
 
 BOUNTY SPEC (what the worker was asked to deliver):
 {spec}
@@ -248,12 +251,18 @@ SUBMITTED DELIVERABLE — text extracted from {url}:
 {evidence}
 \"\"\"
 
-Decide whether this deliverable is GENUINE original, allowed human/authored work that
-satisfies the spec, or whether it is fraudulent. Weigh three signals:
-  1. AI-generation markers — generic phrasing, hollow structure, hallucinated or
-     fabricated specifics, boilerplate padding, uncanny uniformity.
-  2. Plagiarism — content that reads as copied from an obvious external source.
-  3. Spec match — does it actually do what was asked, or is it off-topic filler?
+Choose exactly one verdict:
+  • PLAGIARIZED — only if the text is clearly copied from an external published source:
+    verbatim passages, embedded site navigation/boilerplate (e.g. "Skip to main content",
+    cookie banners, doc-site chrome), or an unmistakable match to known published material.
+  • AI_GENERATED — only with concrete hallmarks of machine generation: hollow generic
+    phrasing with no specific lived detail, fabricated or self-contradictory specifics,
+    uniform boilerplate, or padded lists that say nothing. Polish alone is NOT evidence.
+  • GENUINE — the deliverable is on-topic for the spec AND shows authentic authorship:
+    specific, concrete, first-hand or reasoned detail a real person would actually write.
+  • UNCLEAR — only if the content is empty/unreadable or you truly cannot decide.
+
+Judge spec match separately: genuine work can still be off-spec.
 
 Reply with ONLY a JSON object, no prose:
 {{"verdict": "GENUINE" | "AI_GENERATED" | "PLAGIARIZED" | "UNCLEAR",
