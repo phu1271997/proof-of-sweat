@@ -1,0 +1,17 @@
+# genlayer-test network config.
+# Direct-mode tests (tests/) need none of this — they run in-memory.
+# This is only for integration runs, e.g.:  gltest tests/ --network studionet
+networks:
+  default: studionet
+  studionet:
+    url: https://studio.genlayer.com/api
+    # Account used to sign integration transactions. Provide via env var,
+    # never hardcode a private key here.
+    accounts:
+      - "${GENLAYER_PRIVATE_KEY}"
+  localnet:
+    url: http://127.0.0.1:4000/api
+
+paths:
+  contracts: contracts
+  artifacts: artifacts
