@@ -3,8 +3,15 @@ import { Button, Spinner } from './ui.jsx';
 import { formatGen, shortAddr } from '../lib/format.js';
 import { linkProps } from '../lib/nav.js';
 
-export default function Header({ account, balance, credit, onConnect, onDisconnect, onWithdraw, connecting, withdrawing }) {
+const NAV = [
+  ['/app', 'Bounties'],
+  ['/post', 'Post'],
+  ['/explorer', 'Explorer'],
+];
+
+export default function Header({ route = '', account, balance, credit, onConnect, onDisconnect, onWithdraw, connecting, withdrawing }) {
   const hasCredit = credit && BigInt(credit) > 0n;
+  const isActive = (p) => route === p || route.startsWith(`${p}/`);
   return (
     <header className="site-header">
       <a className="brand" {...linkProps('/')}>
@@ -14,6 +21,14 @@ export default function Header({ account, balance, credit, onConnect, onDisconne
           <div className="brand-tag">work verified by AI consensus</div>
         </div>
       </a>
+
+      <nav className="app-nav">
+        {NAV.map(([to, label]) => (
+          <a key={to} className={`app-nav-link ${isActive(to) ? 'is-active' : ''}`} {...linkProps(to)}>
+            {label}
+          </a>
+        ))}
+      </nav>
 
       <div className="header-right">
         {account ? (

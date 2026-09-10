@@ -3,14 +3,19 @@ import Header from '../components/Header.jsx';
 import CreateBounty, { friendly } from '../components/CreateBounty.jsx';
 import BountyCard from '../components/BountyCard.jsx';
 import BountyModal from '../components/BountyModal.jsx';
-import { Toast, Empty, Button, Spinner } from '../components/ui.jsx';
+import Explorer from '../components/Explorer.jsx';
+import { Toast, Empty, Spinner } from '../components/ui.jsx';
 import {
   fetchBounties, fetchConfig, fetchCredit, fetchNativeBalance, send, contractConfigured, CONTRACT,
 } from '../lib/genlayer.js';
 import { connectWallet, disconnectWallet, getConnectedAddress, onWalletEvents, hasMetaMask } from '../lib/wallet.js';
 import { EXPLORER } from '../lib/format.js';
+import { useRoute, navigate } from '../lib/nav.js';
 
-export default function AppPage() {
+export default function AppShell() {
+  const route = useRoute();
+  const view = route.startsWith('/post') ? 'post' : route.startsWith('/explorer') ? 'explorer' : 'browse';
+
   const [account, setAccount] = useState(null);
   const [balance, setBalance] = useState(null);
   const [credit, setCredit] = useState('0');
@@ -19,7 +24,6 @@ export default function AppPage() {
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
-  const [tab, setTab] = useState('browse');
   const [selectedId, setSelectedId] = useState(null);
   const [toast, setToast] = useState(null);
   const toastTimer = useRef(null);
@@ -109,10 +113,12 @@ export default function AppPage() {
 
   const selected = bounties.find((b) => b.id === selectedId) || null;
   const open = bounties.filter((b) => b.status === 0).length;
+  const resolved = bounties.filter((b) => [3, 4, 6].includes(b.status)).length;
 
   return (
     <div className="app">
       <Header
+        route={route}
         account={account}
         balance={balance}
         credit={credit}
@@ -134,48 +140,37 @@ export default function AppPage() {
         </Banner>
       )}
 
-      <section className="app-intro">
-        <div>
-          <h1 className="app-intro-title">Bounty board</h1>
-          <p className="app-intro-sub">
-            Post work, stake, submit, and let the AI jury settle it on-chain. Every verdict below was
-            decided by validator consensus reading the deliverable.
-          </p>
-        </div>
-        <div className="app-intro-stats">
-          <div><b>{config.total_bounties ?? bounties.length}</b><span>posted</span></div>
-          <div><b>{open}</b><span>open</span></div>
-          <div><b>{config.confidence_threshold ?? 60}%</b><span>min confidence</span></div>
-        </div>
-      </section>
-
-      <nav className="tabs">
-        <button className={tab === 'browse' ? 'active' : ''} onClick={() => setTab('browse')}>Bounties</button>
-        <button className={tab === 'post' ? 'active' : ''} onClick={() => setTab('post')}>Post a bounty</button>
-        <button className="refresh" onClick={refresh} title="Refresh">Refresh</button>
-      </nav>
-
       <main className="main">
-        {tab === 'post' && <CreateBounty account={account} notify={notify} onDone={() => { setTab('browse'); refresh(); }} />}
+        {view === 'browse' && (
+          <BrowseView
+            bounties={bounties}
+            loading={loading}
+            account={account}
+            config={config}
+            open={open}
+            resolved={resolved}
+            onOpen={(x) => setSelectedId(x.id)}
+            onRefresh={refresh}
+          />
+        )}
 
-        {tab === 'browse' && (
-          <>
-            {loading ? (
-              <div className="loading-wrap"><Spinner size={28} /><span>Loading bounties</span></div>
-            ) : bounties.length === 0 ? (
-              <Empty title="No bounties yet">
-                Be the first: post a bounty and let the AI jury settle it. {contractConfigured() && (
-                  <a href={`${EXPLORER}/address/${CONTRACT}`} target="_blank" rel="noreferrer">view contract</a>
-                )}
-              </Empty>
-            ) : (
-              <div className="grid">
-                {bounties.map((b) => (
-                  <BountyCard key={b.id} b={b} account={account} onOpen={(x) => setSelectedId(x.id)} />
-                ))}
+        {view === 'post' && (
+          <section className="page">
+            <div className="page-head">
+              <div>
+                <h1 className="page-title">Post a bounty</h1>
+                <p className="page-sub">
+                  Escrow a reward and describe what genuine, on-spec work looks like. The AI jury judges the
+                  delivered work against it before a single GEN is released.
+                </p>
               </div>
-            )}
-          </>
+            </div>
+            <CreateBounty account={account} notify={notify} onDone={() => { navigate('/app'); refresh(); }} />
+          </section>
+        )}
+
+        {view === 'explorer' && (
+          <Explorer bounties={bounties} loading={loading} onOpen={(x) => setSelectedId(x.id)} />
         )}
       </main>
 
@@ -198,6 +193,42 @@ export default function AppPage() {
 
       <Toast toast={toast} />
     </div>
+  );
+}
+
+function BrowseView({ bounties, loading, account, config, open, resolved, onOpen, onRefresh }) {
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <h1 className="page-title">Bounty board</h1>
+          <p className="page-sub">
+            Post work, stake, submit, and let the AI jury settle it on-chain. Open a card to see the full
+            spec and, once judged, the verdict and the AI's reasoning.
+          </p>
+        </div>
+        <div className="page-stats">
+          <div><b>{config.total_bounties ?? bounties.length}</b><span>posted</span></div>
+          <div><b>{open}</b><span>open</span></div>
+          <div><b>{resolved}</b><span>resolved</span></div>
+          <button className="refresh-btn" onClick={onRefresh} title="Refresh">Refresh</button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="loading-wrap"><Spinner size={28} /><span>Loading bounties</span></div>
+      ) : bounties.length === 0 ? (
+        <Empty title="No bounties yet">
+          Be the first: post a bounty and let the AI jury settle it.
+        </Empty>
+      ) : (
+        <div className="grid">
+          {bounties.map((b) => (
+            <BountyCard key={b.id} b={b} account={account} onOpen={onOpen} />
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 

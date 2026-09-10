@@ -27,5 +27,15 @@
 - Fixed: the jury prompt now presumes genuineness and requires concrete evidence for a fraud
   verdict — validated across GENUINE / AI_GENERATED / PLAGIARIZED deliverables.
 
+### Review feedback (frontend, no contract change)
+- Split the single-page app into distinct routes: `/app` (bounty board), `/post` (dedicated
+  posting page), and `/explorer`. Primary actions each get their own space instead of tabs.
+- New **Explorer** page (`/explorer`): every resolved case read straight from the contract, with
+  verdict, confidence, spec-match, the AI's reasoning, and payout history, plus filters and a
+  summary (cases resolved, GEN paid to workers, genuine vs fraud) and a link to the studio explorer.
+- In-app top nav (Bounties / Post / Explorer) with active state; Explorer also linked from the landing nav.
+- End-to-end frontend pass: deep links, client routing, empty/loading/error states, and form
+  validation ("Connect your wallet first") all verified in-browser with no console errors.
+
 ### Docs
 - README (problem, architecture, consensus explanation, rubric mapping), `scripts/deploy/DEPLOY.md`.

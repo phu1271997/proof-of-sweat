@@ -73,6 +73,7 @@ function Nav() {
         <a href="#how">How it works</a>
         <a href="#verdicts">Verdicts</a>
         <a href="#why">Why GenLayer</a>
+        <a {...linkProps('/explorer')}>Explorer</a>
         <a href="#faq">FAQ</a>
       </div>
       <a className="ld-btn ld-btn-primary ld-nav-cta" {...linkProps('/app')}>Launch app</a>
