@@ -37,5 +37,17 @@
 - End-to-end frontend pass: deep links, client routing, empty/loading/error states, and form
   validation ("Connect your wallet first") all verified in-browser with no console errors.
 
+### Multichain: Arc settlement layer (`arc/`)
+- Proof of Sweat is now two-chain: GenLayer judges, **Arc settles in USDC**. GenLayer stays the
+  AI-jury judgment layer; Arc is the money layer where reward and stake are escrowed and released
+  in native USDC (Arc's gas token).
+- `arc/src/ArcSettlement.sol`: native-USDC bounty escrow (post → claim → submit → settle → withdraw).
+  A relayed GenLayer verdict is posted by an authorized `oracle`; genuine work pays the worker in
+  USDC, fraud refunds the client and slashes the stake. Same thresholds as the GenLayer contract.
+- `arc/`: Foundry project with 7 passing tests (genuine payout, fraud refund + slash, below-threshold
+  withhold, oracle-only settlement, claim guards) and a deploy script for Arc testnet
+  (chain `5042002`, RPC `https://rpc.testnet.arc.io`, gas in USDC).
+
 ### Docs
-- README (problem, architecture, consensus explanation, rubric mapping), `scripts/deploy/DEPLOY.md`.
+- README (problem, architecture, consensus explanation, rubric mapping), `scripts/deploy/DEPLOY.md`,
+  `arc/README.md` (multichain architecture + Arc deploy steps).
