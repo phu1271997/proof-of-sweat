@@ -282,6 +282,19 @@ input:focus, textarea:focus { outline: none; border-color: var(--cyan); box-shad
   .site-header { flex-wrap: wrap; gap: 12px; }
 }
 
+/* ── chain switcher ───────────────────────────────────────────────────────── */
+.chain-switch {
+  display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px;
+  border: 1px solid var(--border-strong); background: var(--panel);
+}
+.chain-pill {
+  background: transparent; border: none; color: var(--muted); cursor: pointer;
+  font-family: var(--font-body); font-weight: 600; font-size: 13px; padding: 6px 14px; border-radius: 999px;
+  transition: background 0.18s, color 0.18s;
+}
+.chain-pill:hover { color: var(--text); }
+.chain-pill.is-on { background: var(--cyan); color: #04222e; }
+
 /* ── in-app nav ───────────────────────────────────────────────────────────── */
 .app-nav { display: flex; gap: 4px; }
 .app-nav-link {

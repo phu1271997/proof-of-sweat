@@ -1,8 +1,10 @@
 import React from 'react';
 import { Badge } from './ui.jsx';
 import { STATUS, VERDICT, formatGen, shortAddr, sameAddr } from '../lib/format.js';
+import { useChain } from '../lib/chainContext.jsx';
 
 export default function BountyCard({ b, account, onOpen }) {
+  const sym = useChain().adapter.symbol;
   const st = STATUS[b.status] || STATUS[0];
   const vd = b.verdict ? VERDICT[b.verdict] : null;
   const mine = sameAddr(b.client, account);
@@ -28,11 +30,11 @@ export default function BountyCard({ b, account, onOpen }) {
       <div className="card-foot">
         <div className="stat">
           <span className="stat-num">{formatGen(b.reward)}</span>
-          <span className="stat-unit">GEN reward</span>
+          <span className="stat-unit">{sym} reward</span>
         </div>
         <div className="stat">
           <span className="stat-num">{formatGen(b.stake_required)}</span>
-          <span className="stat-unit">GEN stake</span>
+          <span className="stat-unit">{sym} stake</span>
         </div>
         <div className="stat right">
           <span className="stat-unit">#{b.id}</span>

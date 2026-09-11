@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Button, Field } from './ui.jsx';
 import { parseGen } from '../lib/format.js';
-import { send } from '../lib/genlayer.js';
+import { useChain } from '../lib/chainContext.jsx';
 
 const SAMPLE = {
   title: 'Write a 600-word explainer on GenLayer consensus',
@@ -10,6 +10,8 @@ const SAMPLE = {
 };
 
 export default function CreateBounty({ account, onDone, notify }) {
+  const { adapter } = useChain();
+  const sym = adapter.symbol;
   const [title, setTitle] = useState('');
   const [spec, setSpec] = useState('');
   const [rules, setRules] = useState('');
@@ -35,7 +37,7 @@ export default function CreateBounty({ account, onDone, notify }) {
 
     setBusy(true);
     try {
-      const { hash } = await send(
+      const { hash } = await adapter.send(
         account,
         'create_bounty',
         [title.trim(), spec.trim(), rules.trim(), stakeWei],
@@ -73,10 +75,10 @@ export default function CreateBounty({ account, onDone, notify }) {
         <textarea value={rules} onChange={(e) => setRules(e.target.value)} rows={2} placeholder="Constraints the worker must follow." />
       </Field>
       <div className="grid-2">
-        <Field label="Reward (GEN)" hint="Escrowed now.">
+        <Field label={`Reward (${sym})`} hint="Escrowed now.">
           <input value={reward} onChange={(e) => setReward(e.target.value)} inputMode="decimal" placeholder="5" />
         </Field>
-        <Field label="Worker stake (GEN)" hint="Skin in the game, slashed on fraud.">
+        <Field label={`Worker stake (${sym})`} hint="Skin in the game, slashed on fraud.">
           <input value={stake} onChange={(e) => setStake(e.target.value)} inputMode="decimal" placeholder="1" />
         </Field>
       </div>
@@ -88,8 +90,8 @@ export default function CreateBounty({ account, onDone, notify }) {
 export function friendly(err) {
   const raw = err?.shortMessage || err?.details || err?.message || String(err);
   if (/user rejected|denied/i.test(raw)) return 'Signature rejected in MetaMask.';
-  if (/insufficient/i.test(raw)) return 'Insufficient GEN balance on studionet. Fund your wallet from Studio, Accounts panel.';
-  if (/from/i.test(raw) && /rpc/i.test(raw)) return 'MetaMask is on the wrong network. Reconnect to switch to studionet.';
+  if (/insufficient/i.test(raw)) return 'Insufficient balance on the selected network. Fund your wallet and try again.';
+  if (/from/i.test(raw) && /rpc/i.test(raw)) return 'MetaMask is on the wrong network. Reconnect to switch to the selected chain.';
   // surface a UserError reason if present
   const m = raw.match(/UserError[^"]*"?([^"}]+)"?/);
   return m ? m[1] : raw.slice(0, 180);

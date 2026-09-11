@@ -117,6 +117,16 @@ Full walkthrough in [`scripts/deploy/DEPLOY.md`](scripts/deploy/DEPLOY.md). Shor
 | **Repo** | https://github.com/phu1271997/proof-of-sweat |
 | **Demo video** | `TO BE FILLED` |
 
+**Multichain: Arc settlement layer.** GenLayer judges; Arc settles in USDC. The `ArcSettlement`
+contract is deployed on Arc testnet and the app has a chain switcher (GenLayer / Arc).
+
+| | |
+|---|---|
+| **Network** | Arc Testnet (chain `5042002`), gas in native USDC |
+| **Contract address** | `0xd898EF839DE88dE38113f0560F8fEBEff73D09c8` |
+| **Explorer** | https://testnet.arcscan.app/address/0xd898EF839DE88dE38113f0560F8fEBEff73D09c8 |
+| **Source + tests** | [`arc/`](arc/) (Foundry, 7 passing tests) |
+
 Verified end-to-end on studionet: the AI jury correctly rules **GENUINE** (original
 first-person work → worker paid), **AI_GENERATED** (hollow boilerplate → rejected), and
 **PLAGIARIZED** (copied MDN page, caught by its embedded site chrome → rejected).

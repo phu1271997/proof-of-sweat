@@ -47,6 +47,13 @@
 - `arc/`: Foundry project with 7 passing tests (genuine payout, fraud refund + slash, below-threshold
   withhold, oracle-only settlement, claim guards) and a deploy script for Arc testnet
   (chain `5042002`, RPC `https://rpc.testnet.arc.io`, gas in USDC).
+- **Deployed to Arc testnet** at `0xd898EF839DE88dE38113f0560F8fEBEff73D09c8` and seeded end-to-end:
+  a genuine bounty paid the worker in USDC (withdrawn on-chain), a fraud case refunded the client,
+  and an open bounty awaits a claim.
+- Frontend **chain switcher** (GenLayer / Arc): one UI over both chains via a chain adapter. GenLayer
+  reads through `genlayer-js`; Arc reads/writes `ArcSettlement` through `viem`. Currency labels, explorer
+  links, and available actions follow the selected chain (Arc hides the jury button since settlement is
+  relayed). MetaMask auto-switches networks per chain.
 
 ### Docs
 - README (problem, architecture, consensus explanation, rubric mapping), `scripts/deploy/DEPLOY.md`,

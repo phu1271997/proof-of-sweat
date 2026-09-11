@@ -5,16 +5,14 @@ import BountyCard from '../components/BountyCard.jsx';
 import BountyModal from '../components/BountyModal.jsx';
 import Explorer from '../components/Explorer.jsx';
 import { Toast, Empty, Spinner } from '../components/ui.jsx';
-import {
-  fetchBounties, fetchConfig, fetchCredit, fetchNativeBalance, send, contractConfigured, CONTRACT,
-} from '../lib/genlayer.js';
-import { connectWallet, disconnectWallet, getConnectedAddress, onWalletEvents, hasMetaMask } from '../lib/wallet.js';
-import { EXPLORER } from '../lib/format.js';
+import { connectWallet, disconnectWallet, ensureNetwork, getConnectedAddress, onWalletEvents, hasMetaMask } from '../lib/wallet.js';
 import { useRoute, navigate } from '../lib/nav.js';
+import { useChain } from '../lib/chainContext.jsx';
 
 export default function AppShell() {
   const route = useRoute();
   const view = route.startsWith('/post') ? 'post' : route.startsWith('/explorer') ? 'explorer' : 'browse';
+  const { adapter, chainKey } = useChain();
 
   const [account, setAccount] = useState(null);
   const [balance, setBalance] = useState(null);
@@ -35,40 +33,46 @@ export default function AppShell() {
   }, []);
 
   const loadBounties = useCallback(async () => {
-    if (!contractConfigured()) { setLoading(false); return; }
+    if (!adapter.configured()) { setBounties([]); setConfig({}); setLoading(false); return; }
     try {
-      const [list, cfg] = await Promise.all([fetchBounties(), fetchConfig()]);
+      const [list, cfg] = await Promise.all([adapter.listBounties(), adapter.getConfig()]);
       setBounties(list);
       setConfig(cfg || {});
     } catch (e) {
-      notify({ tone: 'error', msg: 'Could not read the contract. Is VITE_CONTRACT_ADDRESS correct and deployed on studionet?' });
+      notify({ tone: 'error', msg: `Could not read the ${adapter.label} contract. Is it deployed and configured?` });
     } finally {
       setLoading(false);
     }
-  }, [notify]);
+  }, [adapter, notify]);
 
   const loadAccountData = useCallback(async (addr) => {
-    if (!addr || !contractConfigured()) return;
-    const [bal, cr] = await Promise.all([fetchNativeBalance(addr), fetchCredit(addr)]);
+    if (!addr || !adapter.configured()) { setBalance(null); setCredit('0'); return; }
+    const [bal, cr] = await Promise.all([adapter.getBalance(addr), adapter.getCredit(addr)]);
     setBalance(bal);
     setCredit(cr);
-  }, []);
+  }, [adapter]);
 
   const refresh = useCallback(async () => {
     await loadBounties();
     if (account) await loadAccountData(account);
   }, [loadBounties, loadAccountData, account]);
 
+  // Initial wallet detection + wallet event subscription (once).
   useEffect(() => {
-    loadBounties();
     getConnectedAddress().then((a) => { if (a) setAccount(a); });
     const off = onWalletEvents({
       onAccounts: (a) => { setAccount(a); setBalance(null); },
-      onChain: () => refresh(),
+      onChain: () => { if (account) loadAccountData(account); },
     });
     return off;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Reload whenever the active chain changes.
+  useEffect(() => {
+    setLoading(true);
+    loadBounties();
+  }, [loadBounties]);
 
   useEffect(() => { if (account) loadAccountData(account); }, [account, loadAccountData]);
 
@@ -80,7 +84,7 @@ export default function AppShell() {
   async function connect() {
     setConnecting(true);
     try {
-      const a = await connectWallet();
+      const a = await connectWallet(chainKey);
       setAccount(a);
     } catch (e) {
       notify({ tone: 'error', msg: hasMetaMask() ? friendly(e) : 'MetaMask not detected. Install it to continue.' });
@@ -97,11 +101,17 @@ export default function AppShell() {
     notify({ tone: 'info', msg: 'Wallet disconnected.' });
   }
 
+  // When the user is connected and switches chain, move MetaMask to that network.
+  useEffect(() => {
+    if (account) ensureNetwork(chainKey).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chainKey]);
+
   async function withdraw() {
     setWithdrawing(true);
     try {
-      const { hash } = await send(account, 'withdraw', [], 0n, (msg) => notify({ tone: 'info', msg, busy: true }));
-      notify({ tone: 'success', msg: 'Withdrawn to your wallet.', hash });
+      const { hash } = await adapter.send(account, 'withdraw', [], 0n, (msg) => notify({ tone: 'info', msg, busy: true }));
+      notify({ tone: 'success', msg: `Withdrawn to your wallet in ${adapter.symbol}.`, hash });
       await refresh();
       setTimeout(() => { if (account) loadAccountData(account); }, 6000);
     } catch (e) {
@@ -131,12 +141,12 @@ export default function AppShell() {
 
       {!hasMetaMask() && (
         <Banner tone="info">
-          No wallet detected. Install <a href="https://metamask.io" target="_blank" rel="noreferrer">MetaMask</a> and fund an account on GenLayer studionet to post or claim bounties.
+          No wallet detected. Install <a href="https://metamask.io" target="_blank" rel="noreferrer">MetaMask</a> to post or claim bounties.
         </Banner>
       )}
-      {!contractConfigured() && (
+      {!adapter.configured() && (
         <Banner tone="warn">
-          Contract address not set. Deploy <code>contracts/proof_of_sweat.py</code> on GenLayer Studio and put its address in <code>frontend/.env</code> as <code>VITE_CONTRACT_ADDRESS</code>.
+          The {adapter.label} contract address is not set for this build.
         </Banner>
       )}
 
@@ -149,6 +159,7 @@ export default function AppShell() {
             config={config}
             open={open}
             resolved={resolved}
+            adapter={adapter}
             onOpen={(x) => setSelectedId(x.id)}
             onRefresh={refresh}
           />
@@ -160,8 +171,8 @@ export default function AppShell() {
               <div>
                 <h1 className="page-title">Post a bounty</h1>
                 <p className="page-sub">
-                  Escrow a reward and describe what genuine, on-spec work looks like. The AI jury judges the
-                  delivered work against it before a single GEN is released.
+                  Escrow a reward in {adapter.symbol} on {adapter.label} and describe what genuine, on-spec work
+                  looks like. The GenLayer AI jury judges the delivered work before a single {adapter.symbol} is released.
                 </p>
               </div>
             </div>
@@ -170,14 +181,14 @@ export default function AppShell() {
         )}
 
         {view === 'explorer' && (
-          <Explorer bounties={bounties} loading={loading} onOpen={(x) => setSelectedId(x.id)} />
+          <Explorer bounties={bounties} loading={loading} adapter={adapter} onOpen={(x) => setSelectedId(x.id)} />
         )}
       </main>
 
       <footer className="site-footer">
-        <span>Proof of Sweat, built on <a href="https://genlayer.com" target="_blank" rel="noreferrer">GenLayer</a> studionet</span>
-        {contractConfigured() && (
-          <a className="mono" href={`${EXPLORER}/address/${CONTRACT}`} target="_blank" rel="noreferrer">{CONTRACT}</a>
+        <span>Proof of Sweat, judged on <a href="https://genlayer.com" target="_blank" rel="noreferrer">GenLayer</a>, settled on {adapter.label}</span>
+        {adapter.configured() && (
+          <a className="mono" href={adapter.explorerAddr(adapter.contract)} target="_blank" rel="noreferrer">{adapter.contract}</a>
         )}
       </footer>
 
@@ -196,15 +207,15 @@ export default function AppShell() {
   );
 }
 
-function BrowseView({ bounties, loading, account, config, open, resolved, onOpen, onRefresh }) {
+function BrowseView({ bounties, loading, account, config, open, resolved, adapter, onOpen, onRefresh }) {
   return (
     <>
       <div className="page-head">
         <div>
           <h1 className="page-title">Bounty board</h1>
           <p className="page-sub">
-            Post work, stake, submit, and let the AI jury settle it on-chain. Open a card to see the full
-            spec and, once judged, the verdict and the AI's reasoning.
+            Post work, stake, submit, and let the AI jury settle it. Rewards on {adapter.label} are held and
+            paid in {adapter.symbol}. Open a card for the full spec and, once judged, the verdict and reasoning.
           </p>
         </div>
         <div className="page-stats">

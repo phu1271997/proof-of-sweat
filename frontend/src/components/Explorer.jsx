@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Badge, Meter, Empty, Spinner } from './ui.jsx';
-import { STATUS, VERDICT, formatGen, shortAddr, EXPLORER } from '../lib/format.js';
-import { CONTRACT, contractConfigured } from '../lib/genlayer.js';
+import { STATUS, VERDICT, formatGen, shortAddr } from '../lib/format.js';
 
 // A case is "resolved" once the jury has settled it: approved & paid, rejected,
 // or fraud upheld after an appeal.
@@ -11,8 +10,9 @@ function big(x) {
   try { return BigInt(x); } catch { return 0n; }
 }
 
-export default function Explorer({ bounties, loading, onOpen }) {
+export default function Explorer({ bounties, loading, adapter, onOpen }) {
   const [filter, setFilter] = useState('all');
+  const sym = adapter.symbol;
 
   const resolved = useMemo(
     () => bounties.filter((b) => RESOLVED.has(b.status)),
@@ -38,7 +38,7 @@ export default function Explorer({ bounties, loading, onOpen }) {
 
   const stats = [
     [summary.count, 'cases resolved'],
-    [`${summary.paidOut} GEN`, 'paid to workers'],
+    [`${summary.paidOut} ${sym}`, 'paid to workers'],
     [summary.genuine, 'genuine'],
     [summary.fraud, 'fraud caught'],
   ];
@@ -62,9 +62,9 @@ export default function Explorer({ bounties, loading, onOpen }) {
             <span className="xp-sum-l">{l}</span>
           </div>
         ))}
-        {contractConfigured() && (
-          <a className="xp-verify mono" href={`${EXPLORER}/address/${CONTRACT}`} target="_blank" rel="noreferrer">
-            verify on studio explorer ↗
+        {adapter.configured() && (
+          <a className="xp-verify mono" href={adapter.explorerAddr(adapter.contract)} target="_blank" rel="noreferrer">
+            verify on {adapter.label} explorer ↗
           </a>
         )}
       </div>
@@ -83,14 +83,14 @@ export default function Explorer({ bounties, loading, onOpen }) {
         </Empty>
       ) : (
         <div className="xp-list">
-          {shown.map((b) => <CaseRow key={b.id} b={b} onOpen={onOpen} />)}
+          {shown.map((b) => <CaseRow key={b.id} b={b} sym={sym} onOpen={onOpen} />)}
         </div>
       )}
     </section>
   );
 }
 
-function CaseRow({ b, onOpen }) {
+function CaseRow({ b, sym, onOpen }) {
   const v = VERDICT[b.verdict] || { label: b.verdict || 'Unresolved', tone: 'muted' };
   const st = STATUS[b.status] || STATUS[0];
   const paid = b.status === 3;
@@ -106,8 +106,8 @@ function CaseRow({ b, onOpen }) {
         {b.reason && <p className="case-reason">{clip(b.reason, 240)}</p>}
         <div className="case-pay">
           {paid
-            ? <span className="pay-out">{payout} GEN paid to {shortAddr(b.worker)}</span>
-            : <span className="pay-held">{formatGen(b.reward)} GEN reward withheld</span>}
+            ? <span className="pay-out">{payout} {sym} paid to {shortAddr(b.worker)}</span>
+            : <span className="pay-held">{formatGen(b.reward)} {sym} reward withheld</span>}
         </div>
       </div>
       <div className="case-side">
