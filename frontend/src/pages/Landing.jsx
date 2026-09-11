@@ -3,20 +3,32 @@ import '../landing.css';
 import { linkProps } from '../lib/nav.js';
 import { useReveal } from '../lib/useReveal.js';
 import { fetchBounties, fetchConfig, CONTRACT, contractConfigured } from '../lib/genlayer.js';
+import { arcListBounties } from '../lib/arcAdapter.js';
+import { CHAINS } from '../lib/chains.js';
 import { formatGen, STATUS, VERDICT, EXPLORER } from '../lib/format.js';
 import { Meter } from '../components/ui.jsx';
 
 const REPO = 'https://github.com/phu1271997/proof-of-sweat';
 const CONTRACT_URL = `${EXPLORER}/address/${CONTRACT}`;
+const ARC_URL = CHAINS.arc.explorerAddr(CHAINS.arc.contract);
 
 export default function Landing() {
   const [bounties, setBounties] = useState([]);
   const [config, setConfig] = useState({});
+  const [arc, setArc] = useState({ usdc: '0', count: 0 });
 
   useEffect(() => {
-    if (!contractConfigured()) return;
-    Promise.all([fetchBounties(), fetchConfig()])
-      .then(([b, c]) => { setBounties(b); setConfig(c || {}); })
+    if (contractConfigured()) {
+      Promise.all([fetchBounties(), fetchConfig()])
+        .then(([b, c]) => { setBounties(b); setConfig(c || {}); })
+        .catch(() => {});
+    }
+    arcListBounties()
+      .then((list) => {
+        let paid = 0n;
+        for (const b of list) if (b.status === 3) { try { paid += BigInt(b.reward) + BigInt(b.stake_required); } catch {} }
+        setArc({ usdc: formatGen(paid), count: list.length });
+      })
       .catch(() => {});
   }, []);
 
@@ -45,6 +57,7 @@ export default function Landing() {
       <HowItWorks />
       <Verdicts examples={examples} />
       <WhyGenLayer />
+      <Multichain arc={arc} />
       <Features />
       <Architecture ruled={stats.ruled} posted={stats.posted} />
       <Faq />
@@ -73,6 +86,7 @@ function Nav() {
         <a href="#how">How it works</a>
         <a href="#verdicts">Verdicts</a>
         <a href="#why">Why GenLayer</a>
+        <a href="#multichain">Multichain</a>
         <a {...linkProps('/explorer')}>Explorer</a>
         <a href="#faq">FAQ</a>
       </div>
@@ -86,7 +100,7 @@ function Hero({ examples }) {
   return (
     <header className="ld-hero">
       <div className="ld-hero-copy">
-        <div className="ld-eyebrow">GenLayer · Future of Work</div>
+        <div className="ld-eyebrow">GenLayer × Arc · Future of Work</div>
         <h1 className="ld-hero-title">
           Get paid for real work.<br />
           <span className="ld-muted-title">AI slop gets nothing.</span>
@@ -275,6 +289,45 @@ function WhyGenLayer() {
   );
 }
 
+// ── multichain: GenLayer + Arc ─────────────────────────────────────────────────
+function Multichain({ arc }) {
+  const [ref, shown] = useReveal();
+  return (
+    <section id="multichain" className={`ld-section ld-multi ${shown ? 'is-in' : ''}`} ref={ref}>
+      <div className="ld-section-head">
+        <h2 className="ld-h2">Two chains. Two jobs.</h2>
+        <p className="ld-lead">
+          Judging authenticity and moving money are different problems. Proof of Sweat runs each on the
+          chain built for it: GenLayer decides, Arc pays. The verdict is relayed between them.
+        </p>
+      </div>
+
+      <div className="ld-multi-flow">
+        <div className="ld-layer">
+          <div className="ld-layer-tag ld-layer-gen">GenLayer</div>
+          <h3>The judgment layer</h3>
+          <p>A jury of AI validators reads the deliverable on-chain and reaches consensus on the verdict, with a confidence and spec-match score.</p>
+        </div>
+        <div className="ld-multi-arrow" aria-hidden>
+          <span className="ld-mono">verdict relayed</span>
+        </div>
+        <div className="ld-layer">
+          <div className="ld-layer-tag ld-layer-arc">Arc</div>
+          <h3>The settlement layer</h3>
+          <p>Reward and stake are escrowed and paid in USDC, Arc's native gas token, at sub-second finality. Genuine pays the worker; fraud refunds the client.</p>
+        </div>
+      </div>
+
+      <div className="ld-multi-facts">
+        <div className="ld-multi-fact"><span className="ld-mono">{arc.usdc}</span><label>USDC settled on Arc</label></div>
+        <div className="ld-multi-fact"><span className="ld-mono">5042002</span><label>Arc testnet chain</label></div>
+        <div className="ld-multi-fact"><span className="ld-mono">USDC</span><label>native gas token</label></div>
+        <a className="ld-multi-link ld-mono" href={ARC_URL} target="_blank" rel="noreferrer">ArcSettlement on Arcscan ↗</a>
+      </div>
+    </section>
+  );
+}
+
 // ── features (bento) ──────────────────────────────────────────────────────────
 function Features() {
   const [ref, shown] = useReveal();
@@ -319,10 +372,10 @@ function Features() {
 function Architecture({ ruled, posted }) {
   const [ref, shown] = useReveal();
   const rows = [
-    ['Contract', 'Python Intelligent Contract on GenLayer studionet'],
-    ['Consensus', 'gl.vm.run_nondet with a custom verdict-comparing validator'],
-    ['Tests', '22 direct-mode gltest cases, including the consensus guarantee'],
-    ['Frontend', 'React and genlayer-js, signed by MetaMask'],
+    ['Judgment', 'Python Intelligent Contract on GenLayer studionet, gl.vm.run_nondet'],
+    ['Settlement', 'ArcSettlement.sol on Arc testnet, escrow paid in native USDC'],
+    ['Tests', '22 gltest cases on GenLayer, 7 Foundry tests on Arc'],
+    ['Frontend', 'React with genlayer-js and viem, one UI over both chains'],
   ];
   return (
     <section className={`ld-section ld-arch ${shown ? 'is-in' : ''}`} ref={ref}>
@@ -400,11 +453,12 @@ function Footer() {
       </div>
       <div className="ld-footer-links">
         <a href={REPO} target="_blank" rel="noreferrer">GitHub</a>
-        <a href={CONTRACT_URL} target="_blank" rel="noreferrer">Explorer</a>
+        <a href={CONTRACT_URL} target="_blank" rel="noreferrer">GenLayer contract</a>
+        <a href={ARC_URL} target="_blank" rel="noreferrer">Arc contract</a>
         <a href="https://genlayer.com" target="_blank" rel="noreferrer">GenLayer</a>
         <a {...linkProps('/app')}>Launch app</a>
       </div>
-      <div className="ld-footer-note">Built on GenLayer studionet for the Agent Tank hackathon.</div>
+      <div className="ld-footer-note">GenLayer judges, Arc settles in USDC. Built for the Agent Tank and Arc hackathons.</div>
     </footer>
   );
 }

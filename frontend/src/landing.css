@@ -241,3 +241,40 @@ html { scroll-behavior: smooth; }
   .ld-steps { grid-template-columns: 1fr; }
   .ld-footer-note { margin-left: 0; width: 100%; }
 }
+
+/* ── multichain section ───────────────────────────────────────────────────── */
+.ld-multi-flow {
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: stretch; gap: 8px;
+}
+.ld-layer {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 26px 26px 28px;
+}
+.ld-layer h3 { font-size: 20px; margin: 14px 0 8px; }
+.ld-layer p { color: var(--muted); font-size: 15px; line-height: 1.6; margin: 0; max-width: 42ch; }
+.ld-layer-tag {
+  display: inline-block; font-family: var(--font-mono); font-size: 12px; font-weight: 600;
+  padding: 4px 12px; border-radius: 999px;
+}
+.ld-layer-gen { color: #04222e; background: var(--cyan); }
+.ld-layer-arc { color: #04182e; background: var(--blue); }
+.ld-multi-arrow {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 0 6px;
+}
+.ld-multi-arrow span { color: var(--faint); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; white-space: nowrap; }
+.ld-multi-arrow::before, .ld-multi-arrow::after { content: ''; flex: 1; width: 1px; background: linear-gradient(var(--border-strong), transparent); }
+.ld-multi-arrow::after { background: linear-gradient(transparent, var(--border-strong)); }
+.ld-multi-facts {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 18px 40px; margin-top: 28px;
+  padding-top: 24px; border-top: 1px solid var(--border);
+}
+.ld-multi-fact { display: flex; flex-direction: column; gap: 5px; }
+.ld-multi-fact span { font-size: 22px; color: var(--text); line-height: 1; }
+.ld-multi-fact label { font-size: 12px; color: var(--faint); text-transform: uppercase; letter-spacing: 0.5px; }
+.ld-multi-link { margin-left: auto; color: var(--cyan); font-size: 13px; }
+
+@media (max-width: 780px) {
+  .ld-multi-flow { grid-template-columns: 1fr; }
+  .ld-multi-arrow { flex-direction: row; padding: 8px 0; }
+  .ld-multi-arrow::before, .ld-multi-arrow::after { width: auto; height: 1px; }
+  .ld-multi-link { margin-left: 0; }
+}
