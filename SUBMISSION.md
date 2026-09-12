@@ -99,7 +99,7 @@ https://explorer-studio.genlayer.com/address/0x727Ba3DBB6683c04c34B795fbdAF269e9
 
 ## Website
 ```
-https://proofofsweat.vercel.app
+https://proofofsweat-app.vercel.app
 ```
 
 ## GitHub
