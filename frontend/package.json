@@ -9,7 +9,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "genlayer-js": "1.2.0",
+    "@genlayer/transaction-kit": "^0.1.0-rc.2",
+    "@genlayer/transaction-kit-react": "^0.1.0-rc.2",
+    "genlayer-js": "^2.0.0-rc.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "viem": "2.56.3"

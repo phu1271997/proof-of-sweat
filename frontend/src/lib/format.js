@@ -61,4 +61,4 @@ export const VERDICT = {
   UNCLEAR: { label: 'Unclear', tone: 'amber' },
 };
 
-export const EXPLORER = 'https://explorer-studio.genlayer.com';
+export const EXPLORER = 'https://explorer-studio-dev.genlayer.com';

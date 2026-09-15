@@ -1,5 +1,5 @@
 import { createClient } from 'genlayer-js';
-import { studionet } from 'genlayer-js/chains';
+import { studioDevnet } from 'genlayer-js/chains';
 
 export const CONTRACT = import.meta.env.VITE_CONTRACT_ADDRESS || '';
 
@@ -7,17 +7,35 @@ export function contractConfigured() {
   return /^0x[a-fA-F0-9]{40}$/.test(CONTRACT);
 }
 
+export const studioNext = {
+  ...studioDevnet,
+  id: 61997,
+  name: 'GenLayer Studio Next',
+  nativeCurrency: { name: 'GEN Token', symbol: 'GEN', decimals: 18 },
+  rpcUrls: {
+    default: {
+      http: ['https://studio-next.genlayer.com/api'],
+    },
+  },
+  blockExplorers: {
+    default: {
+      name: 'GenLayer Studio Dev Explorer',
+      url: 'https://explorer-studio-dev.genlayer.com',
+    },
+  },
+};
+
 // Read-only client (no signer needed for views / balances).
 let _readClient;
 function readClient() {
-  if (!_readClient) _readClient = createClient({ chain: studionet });
+  if (!_readClient) _readClient = createClient({ chain: studioNext });
   return _readClient;
 }
 
 // Write client bound to the connected MetaMask account (MetaMask signs).
 function writeClient(account) {
   return createClient({
-    chain: studionet,
+    chain: studioNext,
     account,
     provider: typeof window !== 'undefined' ? window.ethereum : undefined,
   });
@@ -83,7 +101,7 @@ export async function send(account, functionName, args = [], value = 0n, onStatu
   onStatus?.('Submitted. Validators reaching consensus…');
   const receipt = await client.waitForTransactionReceipt({
     hash,
-    status: 'ACCEPTED',
+    waitUntil: 'decided',
     interval: 3000,
     retries: 120,
   });

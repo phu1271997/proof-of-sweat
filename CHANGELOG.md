@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.0] — GenLayer Studio Next Migration (Consensus v0.6 & Fee Model)
+
+### Contract (`contracts/proof_of_sweat_studio_next.py`, `contracts/proof_of_sweat.py`)
+- Upgraded runtime pragma to GenVM v0.3.0 (`py-genlayer:5jycge4q8k23462jtb0b9fyey1s9qz928sz2nbrd9mg4sxqg2qng`).
+- Modernized inheritance to `gl.contract.Contract` and typed storage structures to `gl.storage.TreeMap` and `gl.storage.DynArray`.
+- Deployed on **GenLayer Studio Next** at `0xF50d94C96dbE81e3b15Eb8fd0e4De24F1690b3f6`.
+- Verified on-chain state transition: created Genesis Bounty on Studio Next (Tx: `0xeab1c3f177a9e9cf50e13a27c450d6fb7cd8d81842122c63ab7dc50c968992cb`).
+
+### Frontend & SDK
+- Upgraded to `@genlayer/transaction-kit@0.1.0-rc.2`, `@genlayer/transaction-kit-react@0.1.0-rc.2`, and `genlayer-js@2.0.0-rc.1`.
+- Migrated chain configuration to **GenLayer Studio Next** (Chain ID: `61997`, RPC: `https://studio-next.genlayer.com/api`).
+- Configured dynamic fee policy estimation (`estimateTransactionFees`) and receipt polling (`waitUntil: 'decided'`).
+- Production deployment updated on Vercel: `https://proofofsweat-app.vercel.app`.
+
 ## [1.0.0] — Agent Tank hackathon submission
 
 ### Contract (`contracts/proof_of_sweat.py`)

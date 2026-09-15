@@ -1,4 +1,4 @@
-import { studionet } from 'genlayer-js/chains';
+import { studioDevnet } from 'genlayer-js/chains';
 import { arcChain } from './chains.js';
 
 const toHex = (id) => '0x' + Number(id).toString(16);
@@ -6,13 +6,13 @@ const toHex = (id) => '0x' + Number(id).toString(16);
 // Per-chain MetaMask network parameters (for switch / add).
 const NETWORKS = {
   genlayer: {
-    chainIdHex: toHex(studionet.id),
+    chainIdHex: toHex(61997), // 0xF22D
     params: {
-      chainId: toHex(studionet.id),
-      chainName: studionet.name,
-      nativeCurrency: studionet.nativeCurrency,
-      rpcUrls: studionet.rpcUrls.default.http,
-      blockExplorerUrls: ['https://explorer-studio.genlayer.com'],
+      chainId: toHex(61997),
+      chainName: 'GenLayer Studio Next',
+      nativeCurrency: { name: 'GEN Token', symbol: 'GEN', decimals: 18 },
+      rpcUrls: ['https://studio-next.genlayer.com/api'],
+      blockExplorerUrls: ['https://explorer-studio-dev.genlayer.com'],
     },
   },
   arc: {
