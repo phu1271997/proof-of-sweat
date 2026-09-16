@@ -217,6 +217,23 @@ class Contract(gl.contract.Contract):
         rules = b.rules
         url = b.deliverable_url
         is_appeal = b.status == u8(S_APPEALED)
+        conf_threshold = int(self.confidence_threshold)
+        spec_threshold = int(self.min_spec_match)
+
+        def _payment_approved(d: dict) -> bool:
+            """Determine if a verdict meets the criteria to approve payment.
+
+            Payment is approved IF AND ONLY IF:
+              1. The verdict is GENUINE (not AI_GENERATED, PLAGIARIZED, or UNCLEAR)
+              2. Confidence is at or above the confidence threshold
+              3. Spec match score is at or above the min spec match threshold
+            """
+            if not isinstance(d, dict):
+                return False
+            v = d.get("verdict")
+            c = max(0, min(_as_int(d.get("confidence", 0), 0), 100))
+            s = max(0, min(_as_int(d.get("spec_match", 0), 0), 100))
+            return v == V_GENUINE and c >= conf_threshold and s >= spec_threshold
 
         def leader_fn():
             try:
@@ -229,6 +246,7 @@ class Contract(gl.contract.Contract):
                     "confidence": 90,
                     "spec_match": 0,
                     "reason": "The deliverable URL returned no readable content (dead link, empty, or blocked).",
+                    "payment_approved": False,
                 }
             evidence = page[:_MAX_EVIDENCE_CHARS]
             strictness = (
@@ -272,7 +290,16 @@ Reply with ONLY a JSON object, no prose:
   "confidence": <integer 0-100, how sure you are of the verdict>,
   "spec_match": <integer 0-100, how well it satisfies the spec>,
   "reason": "<two sentences citing concrete evidence from the deliverable>"}}"""
-            return gl.nondet.exec_prompt(prompt, response_format="json")
+            res = gl.nondet.exec_prompt(prompt, response_format="json")
+            if not isinstance(res, dict):
+                res = {
+                    "verdict": V_UNCLEAR,
+                    "confidence": 0,
+                    "spec_match": 0,
+                    "reason": "Invalid response format from validator model.",
+                }
+            res["payment_approved"] = _payment_approved(res)
+            return res
 
         def validator_fn(res) -> bool:
             # Leader must have returned successfully.
@@ -284,11 +311,18 @@ Reply with ONLY a JSON object, no prose:
             mine = leader_fn()
             if not isinstance(mine, dict):
                 return False
-            # Consensus is on MEANING: agree iff the verdict category matches.
-            # Free-text `reason` and small confidence drift are deliberately ignored —
-            # two honest validators must never disagree just because they phrased
-            # their reasoning differently.
-            return mine.get("verdict") == leader.get("verdict")
+
+            # Validators must agree on:
+            # 1. The verdict category (GENUINE vs AI_GENERATED vs PLAGIARIZED vs UNCLEAR)
+            # 2. The final payment decision (including confidence & spec-match thresholds)
+            #
+            # Crucial: Two validators who both rule GENUINE must NOT reach consensus if one
+            # thinks the confidence/spec-match thresholds are met to pay the worker, while
+            # the other thinks thresholds are not met (e.g. low confidence or poor spec match).
+            verdict_match = mine.get("verdict") == leader.get("verdict")
+            payment_match = _payment_approved(mine) == _payment_approved(leader)
+
+            return verdict_match and payment_match
 
         # gl.vm.run_nondet is the recommended API (sandboxes validator errors).
         # NOTE for deploy: if this Studio build raises AttributeError on run_nondet,
@@ -309,11 +343,7 @@ Reply with ONLY a JSON object, no prose:
         b.spec_match = u8(spec_match)
         b.reason = reason
 
-        approve = (
-            verdict == V_GENUINE
-            and confidence >= int(self.confidence_threshold)
-            and spec_match >= int(self.min_spec_match)
-        )
+        approve = _payment_approved(result)
 
         if approve:
             b.status = u8(S_APPROVED)

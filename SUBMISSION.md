@@ -92,9 +92,9 @@ Open the app; reading needs no wallet. You will see three settled bounties decid
 
 ## Contract link
 ```
-https://explorer-studio-dev.genlayer.com/address/0xF50d94C96dbE81e3b15Eb8fd0e4De24F1690b3f6
+https://explorer-studio-dev.genlayer.com/address/0x38e53C1BF5128f05D6EAd05b56bdfF4c8305cd68
 ```
-- Address: `0xF50d94C96dbE81e3b15Eb8fd0e4De24F1690b3f6`
+- Address: `0x38e53C1BF5128f05D6EAd05b56bdfF4c8305cd68`
 - Network: **GenLayer Studio Next** (Chain ID: `61997`, Consensus v0.6)
 
 ## Website

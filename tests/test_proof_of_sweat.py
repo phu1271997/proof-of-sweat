@@ -210,6 +210,21 @@ def test_validator_rejects_reason_only_difference(direct_vm, direct_deploy, dire
     assert direct_vm.run_validator() is True
 
 
+def test_validators_disagree_when_payment_decision_differs(direct_vm, direct_deploy, direct_alice, direct_bob):
+    """Leader sees GENUINE above threshold (pays).
+    Validator sees GENUINE below confidence threshold (does NOT pay).
+    Even though both rule GENUINE, they MUST DISAGREE because their payment
+    decisions differ (confidence threshold not met by validator).
+    Fixes the exact feedback requested by the hackathon judge."""
+    c, bid = _new_bounty(direct_vm, direct_deploy, direct_alice)
+    _submit(c, direct_vm, bid, direct_bob)
+    _mock_ok(direct_vm, GENUINE)  # conf=90, spec=85 -> pays
+    c.adjudicate(bid)
+    direct_vm.clear_mocks()
+    _mock_ok(direct_vm, LOW_CONF_GENUINE)  # conf=40 (< 60) -> does not pay
+    assert direct_vm.run_validator() is False
+
+
 # ── appeal flow ──────────────────────────────────────────────────────────────
 def test_appeal_overturns_and_pays(direct_vm, direct_deploy, direct_alice, direct_bob):
     c, bid = _new_bounty(direct_vm, direct_deploy, direct_alice)

@@ -111,8 +111,8 @@ Full walkthrough in [`scripts/deploy/DEPLOY.md`](scripts/deploy/DEPLOY.md). Shor
 | | |
 |---|---|
 | **Network** | GenLayer **Studio Next** (Chain ID `61997`, Consensus v0.6) |
-| **Contract address** | `0xF50d94C96dbE81e3b15Eb8fd0e4De24F1690b3f6` |
-| **Explorer** | https://explorer-studio-dev.genlayer.com/address/0xF50d94C96dbE81e3b15Eb8fd0e4De24F1690b3f6 |
+| **Contract address** | `0x38e53C1BF5128f05D6EAd05b56bdfF4c8305cd68` |
+| **Explorer** | https://explorer-studio-dev.genlayer.com/address/0x38e53C1BF5128f05D6EAd05b56bdfF4c8305cd68 |
 | **Live app** | https://proofofsweat-app.vercel.app |
 | **Repo** | https://github.com/phu1271997/proof-of-sweat |
 | **Demo video** | `TO BE FILLED` |

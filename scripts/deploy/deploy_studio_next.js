@@ -13,7 +13,7 @@
 const fs = require('fs');
 const path = require('path');
 const { createClient, createAccount } = require(path.resolve(__dirname, '../../frontend/node_modules/genlayer-js'));
-const { studioDevnet } = require(path.resolve(__dirname, '../../frontend/node_modules/genlayer-js/chains'));
+const { studioDevnet } = require(path.resolve(__dirname, '../../frontend/node_modules/genlayer-js/dist/chains/index.cjs'));
 
 let key = process.env.GENLAYER_PRIVATE_KEY || '';
 if (!key) {
