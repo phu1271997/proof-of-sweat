@@ -207,8 +207,11 @@ export default function AppShell() {
         <BountyModal
           bounty={selected}
           account={account}
+          credit={credit}
           onClose={() => setSelectedId(null)}
           onRefresh={refresh}
+          onWithdraw={withdraw}
+          withdrawing={withdrawing}
           notify={notify}
         />
       )}

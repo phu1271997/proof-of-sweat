@@ -246,6 +246,29 @@ input:focus, textarea:focus { outline: none; border-color: var(--cyan); box-shad
 .rep-detail { font-size: 12px; color: var(--faint); margin-left: auto; }
 
 .detail-actions { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
+.claim-box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: rgba(195, 243, 77, 0.08);
+  border: 1px solid rgba(195, 243, 77, 0.35);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+}
+.claim-box-info {
+  font-size: 13.5px;
+  color: var(--text);
+  line-height: 1.5;
+}
+.claim-box-info strong {
+  color: var(--lime);
+}
+.claim-box .btn-lime {
+  font-weight: 700;
+  font-size: 15px;
+  padding: 13px 18px;
+  width: 100%;
+}
 .submit-row { display: flex; flex-direction: column; gap: 10px; }
 .info-line { font-size: 13px; color: var(--muted); padding: 10px 12px; background: var(--bg-2); border-radius: var(--radius-sm); border: 1px solid var(--border); }
 .info-good { color: var(--lime); border-color: rgba(195,243,77,0.25); }

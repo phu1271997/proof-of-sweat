@@ -4,14 +4,46 @@ import { STATUS, VERDICT, formatGen, shortAddr, sameAddr } from '../lib/format.j
 import { friendly } from './CreateBounty.jsx';
 import { useChain } from '../lib/chainContext.jsx';
 
-export default function BountyModal({ bounty, account, onClose, onRefresh, notify }) {
+export default function BountyModal({
+  bounty,
+  account,
+  credit,
+  onClose,
+  onRefresh,
+  onWithdraw,
+  withdrawing,
+  notify,
+}) {
   const { adapter } = useChain();
   const cap = adapter.cap;
   const sym = adapter.symbol;
   const [url, setUrl] = useState('');
   const [busy, setBusy] = useState('');
   const [rep, setRep] = useState(null);
+  const [userCredit, setUserCredit] = useState(credit || '0');
+  const [loadingCredit, setLoadingCredit] = useState(true);
   const b = bounty;
+
+  useEffect(() => {
+    if (credit !== undefined && credit !== null) {
+      setUserCredit(String(credit));
+    }
+  }, [credit]);
+
+  useEffect(() => {
+    let active = true;
+    if (account && adapter?.getCredit) {
+      setLoadingCredit(true);
+      adapter.getCredit(account).then((c) => {
+        if (active && c !== undefined && c !== null) setUserCredit(String(c));
+      }).catch(() => {}).finally(() => {
+        if (active) setLoadingCredit(false);
+      });
+    } else {
+      setLoadingCredit(false);
+    }
+    return () => { active = false; };
+  }, [account, adapter, b?.id, b?.status]);
 
   useEffect(() => {
     setUrl('');
@@ -25,6 +57,24 @@ export default function BountyModal({ bounty, account, onClose, onRefresh, notif
   const isClient = sameAddr(b.client, account);
   const isWorker = sameAddr(b.worker, account);
   const canClaim = b.status === 0 && account && !isClient;
+
+  async function handleWithdraw() {
+    if (onWithdraw) {
+      await onWithdraw();
+      if (account && adapter?.getCredit) {
+        adapter.getCredit(account).then((c) => {
+          if (c !== undefined && c !== null) setUserCredit(String(c));
+        }).catch(() => {});
+      }
+    } else {
+      await act('withdraw', [], 0n, `Payout claimed to your wallet in ${sym}.`);
+      if (account && adapter?.getCredit) {
+        adapter.getCredit(account).then((c) => {
+          if (c !== undefined && c !== null) setUserCredit(String(c));
+        }).catch(() => {});
+      }
+    }
+  }
 
   async function act(fn, args, value, okMsg) {
     if (!account) return notify({ tone: 'error', msg: 'Connect your wallet first.' });
@@ -44,6 +94,11 @@ export default function BountyModal({ bounty, account, onClose, onRefresh, notif
         notify({ tone: 'success', msg: okMsg, hash });
       }
       await onRefresh?.();
+      if (account && adapter?.getCredit) {
+        adapter.getCredit(account).then((c) => {
+          if (c !== undefined && c !== null) setUserCredit(String(c));
+        }).catch(() => {});
+      }
     } catch (err) {
       notify({ tone: 'error', msg: friendly(err) });
     } finally {
@@ -158,13 +213,83 @@ export default function BountyModal({ bounty, account, onClose, onRefresh, notif
               Finalize & claim escrow
             </Button>
           )}
-          {b.status === 4 && !cap.hasFinalize && isClient && <Info tone="good">Rejected. You were refunded in {sym}; withdraw from the header.</Info>}
+          {b.status === 4 && !cap.hasFinalize && isClient && (
+            BigInt(userCredit || 0) > 0n ? (
+              <div className="claim-box">
+                <div className="claim-box-info">
+                  Rejected by jury. Your refunded escrow is ready to claim.
+                </div>
+                <Button variant="lime" busy={busy === 'withdraw' || withdrawing} onClick={handleWithdraw}>
+                  Withdraw refund · {formatGen(userCredit)} {sym}
+                </Button>
+              </div>
+            ) : (
+              <Info tone="good">Rejected. Escrow was refunded in {sym}.</Info>
+            )
+          )}
           {b.status === 4 && !cap.hasAppeal && isWorker && <Info tone="bad">Rejected. The client was refunded and your stake was slashed.</Info>}
           {b.status === 4 && !isWorker && !isClient && cap.hasAppeal && <Info>Awaiting the worker&rsquo;s appeal or the client finalizing.</Info>}
 
-          {b.status === 3 && <Info tone="good">Approved. {isWorker ? `Withdraw your ${sym} from the header.` : 'The worker has been paid.'}</Info>}
-          {b.status === 6 && <Info tone="bad">Fraud upheld. The client was compensated from escrow.</Info>}
-          {b.status === 7 && <Info>Cancelled by the client.</Info>}
+          {b.status === 3 && isWorker && BigInt(userCredit || 0) > 0n && (
+            <div className="claim-box">
+              <div className="claim-box-info">
+                🎉 <strong>Work Approved!</strong> The AI jury ruled your deliverable as <strong>GENUINE</strong>.
+                Your reward + returned stake ({formatGen(userCredit)} {sym}) are ready to claim.
+              </div>
+              <Button
+                variant="lime"
+                busy={busy === 'withdraw' || withdrawing}
+                onClick={handleWithdraw}
+              >
+                Claim {formatGen(userCredit)} {sym} (Reward + Stake)
+              </Button>
+            </div>
+          )}
+          {b.status === 3 && isWorker && BigInt(userCredit || 0) === 0n && !loadingCredit && (
+            <Info tone="good">✓ Approved · Payout of {formatGen(BigInt(b.reward || 0) + BigInt(b.worker_stake || b.stake_required || 0))} {sym} has been claimed to your wallet ({shortAddr(b.worker)}).</Info>
+          )}
+          {b.status === 3 && isWorker && BigInt(userCredit || 0) === 0n && loadingCredit && (
+            <Info tone="good">Approved. Checking claimable balance…</Info>
+          )}
+          {b.status === 3 && !isWorker && (
+            <Info tone="good">
+              {account
+                ? isClient
+                  ? `Approved by AI jury. Reward of ${formatGen(b.reward)} ${sym} was awarded to the worker (${shortAddr(b.worker)}).`
+                  : `Approved by AI jury. Payout awarded to the worker (${shortAddr(b.worker)}).`
+                : `Approved. Connect worker wallet (${shortAddr(b.worker)}) to claim payout.`}
+            </Info>
+          )}
+
+          {b.status === 6 && (
+            isClient && BigInt(userCredit || 0) > 0n ? (
+              <div className="claim-box">
+                <div className="claim-box-info">
+                  Fraud upheld. Your escrow refund and slashed worker stake are ready to claim.
+                </div>
+                <Button variant="lime" busy={busy === 'withdraw' || withdrawing} onClick={handleWithdraw}>
+                  Withdraw {formatGen(userCredit)} {sym} (Refund + Slashed Stake)
+                </Button>
+              </div>
+            ) : (
+              <Info tone="bad">Fraud upheld. The client was compensated from escrow.</Info>
+            )
+          )}
+
+          {b.status === 7 && (
+            isClient && BigInt(userCredit || 0) > 0n ? (
+              <div className="claim-box">
+                <div className="claim-box-info">
+                  Bounty cancelled. Your refunded reward is ready to claim.
+                </div>
+                <Button variant="lime" busy={busy === 'withdraw' || withdrawing} onClick={handleWithdraw}>
+                  Withdraw {formatGen(userCredit)} {sym} (Refund)
+                </Button>
+              </div>
+            ) : (
+              <Info>Cancelled by the client.</Info>
+            )
+          )}
         </div>
 
         {adapter.configured() && (

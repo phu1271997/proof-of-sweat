@@ -15,7 +15,7 @@ export default function BountyCard({ b, account, onOpen }) {
       <div className="card-top">
         <Badge tone={st.tone}>{st.label}</Badge>
         {mine && <span className="tag-you">you posted</span>}
-        {working && <span className="tag-you tag-work">you claimed</span>}
+        {working && <span className="tag-you tag-work">{b.status === 3 ? 'approved · claimable' : 'you claimed'}</span>}
       </div>
       <h3 className="card-title">{b.title || `Bounty #${b.id}`}</h3>
       <p className="card-spec">{b.spec}</p>
