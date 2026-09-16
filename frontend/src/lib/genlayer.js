@@ -32,12 +32,14 @@ function readClient() {
   return _readClient;
 }
 
-// Write client bound to the connected MetaMask account (MetaMask signs).
+import { getActiveProvider } from './wallet.js';
+
+// Write client bound to the connected wallet account (MetaMask / OKX / Rabby signs).
 function writeClient(account) {
   return createClient({
     chain: studioNext,
     account,
-    provider: typeof window !== 'undefined' ? window.ethereum : undefined,
+    provider: getActiveProvider() || (typeof window !== 'undefined' ? window.ethereum : undefined),
   });
 }
 

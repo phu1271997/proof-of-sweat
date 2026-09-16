@@ -72,10 +72,13 @@ export async function arcFetchReputation() {
   return null; // reputation lives on the GenLayer judgment layer, not on Arc
 }
 
+import { getActiveProvider } from './wallet.js';
+
 // Maps the app's normalized action names to the ArcSettlement contract calls.
 export async function arcSend(account, fn, args = [], value = 0n, onStatus) {
-  const wallet = createWalletClient({ account, chain: arcChain, transport: custom(window.ethereum) });
-  onStatus?.('Awaiting signature in MetaMask…');
+  const provider = getActiveProvider() || (typeof window !== 'undefined' ? window.ethereum : undefined);
+  const wallet = createWalletClient({ account, chain: arcChain, transport: custom(provider) });
+  onStatus?.('Awaiting signature in wallet…');
   const base = { address: CONTRACT, abi: ARC_ABI, account, chain: arcChain };
   let hash;
   if (fn === 'create_bounty') {

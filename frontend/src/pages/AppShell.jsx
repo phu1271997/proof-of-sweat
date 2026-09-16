@@ -4,8 +4,9 @@ import CreateBounty, { friendly } from '../components/CreateBounty.jsx';
 import BountyCard from '../components/BountyCard.jsx';
 import BountyModal from '../components/BountyModal.jsx';
 import Explorer from '../components/Explorer.jsx';
+import WalletModal from '../components/WalletModal.jsx';
 import { Toast, Empty, Spinner } from '../components/ui.jsx';
-import { connectWallet, disconnectWallet, ensureNetwork, getConnectedAddress, onWalletEvents, hasMetaMask } from '../lib/wallet.js';
+import { connectWallet, disconnectWallet, ensureNetwork, getConnectedAddress, onWalletEvents, hasAnyWallet } from '../lib/wallet.js';
 import { useRoute, navigate } from '../lib/nav.js';
 import { useChain } from '../lib/chainContext.jsx';
 
@@ -21,6 +22,8 @@ export default function AppShell() {
   const [config, setConfig] = useState({});
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
+  const [walletModalOpen, setWalletModalOpen] = useState(false);
+  const [connectingWalletId, setConnectingWalletId] = useState(null);
   const [withdrawing, setWithdrawing] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [toast, setToast] = useState(null);
@@ -81,14 +84,22 @@ export default function AppShell() {
     return () => clearInterval(id);
   }, [loadBounties]);
 
-  async function connect() {
+  function connect() {
+    setWalletModalOpen(true);
+  }
+
+  async function handleSelectWallet(walletId) {
+    setConnectingWalletId(walletId);
     setConnecting(true);
     try {
-      const a = await connectWallet(chainKey);
+      const a = await connectWallet(chainKey, walletId);
       setAccount(a);
+      setWalletModalOpen(false);
+      notify({ tone: 'success', msg: 'Wallet connected.' });
     } catch (e) {
-      notify({ tone: 'error', msg: hasMetaMask() ? friendly(e) : 'MetaMask not detected. Install it to continue.' });
+      notify({ tone: 'error', msg: friendly(e) });
     } finally {
+      setConnectingWalletId(null);
       setConnecting(false);
     }
   }
@@ -101,7 +112,7 @@ export default function AppShell() {
     notify({ tone: 'info', msg: 'Wallet disconnected.' });
   }
 
-  // When the user is connected and switches chain, move MetaMask to that network.
+  // When the user is connected and switches chain, move wallet to that network.
   useEffect(() => {
     if (account) ensureNetwork(chainKey).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -139,9 +150,9 @@ export default function AppShell() {
         withdrawing={withdrawing}
       />
 
-      {!hasMetaMask() && (
+      {!hasAnyWallet() && (
         <Banner tone="info">
-          No wallet detected. Install <a href="https://metamask.io" target="_blank" rel="noreferrer">MetaMask</a> to post or claim bounties.
+          No Web3 wallet detected. Install <a href="https://metamask.io" target="_blank" rel="noreferrer">MetaMask</a>, <a href="https://www.okx.com/web3" target="_blank" rel="noreferrer">OKX Wallet</a>, or <a href="https://rabby.io" target="_blank" rel="noreferrer">Rabby Wallet</a> to post or claim bounties.
         </Banner>
       )}
       {!adapter.configured() && (
@@ -201,6 +212,13 @@ export default function AppShell() {
           notify={notify}
         />
       )}
+
+      <WalletModal
+        isOpen={walletModalOpen}
+        onClose={() => setWalletModalOpen(false)}
+        onSelect={handleSelectWallet}
+        connectingId={connectingWalletId}
+      />
 
       <Toast toast={toast} />
     </div>

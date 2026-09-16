@@ -57,35 +57,39 @@ Deciding whether a deliverable is genuine human effort or AI slop is a subjectiv
 
 ## How to try it
 
-**Before you start:** to just look around, open the site, no wallet needed. To try it hands-on, connect MetaMask with a little GEN on the GenLayer studio network.
+**Before you start:** to just browse, open the site — no wallet needed. Every bounty, verdict, and AI reasoning is visible read-only. To try it hands-on, have MetaMask ready with a little GEN (GenLayer) or USDC (Arc).
 
-**Step 1 — Connect.**
-Open the app, click "Connect MetaMask", and approve the switch to the GenLayer studio network.
+**Step 1 — Browse & explore.**
+Open the site and scroll the bounty board. Click any settled task to read the AI jury's verdict, confidence score, spec-match, and its written reasoning — all produced on-chain. Visit the **Explorer** tab for a full transparency log of every resolved case.
 
-**Step 2 — Claim a task.**
-Open a task marked "Open" and click "Claim & stake". You are now the worker.
+**Step 2 — Connect & pick your chain.**
+Click "Connect MetaMask" in the top right. Your address and balance appear in the header. Use the chain pills (GenLayer / Arc) to switch networks — MetaMask auto-switches. GenLayer settles in GEN; Arc settles in native USDC.
 
-**Step 3 — Submit your work.**
-Click "Submit for review" and paste a public link to the delivered work. Sample link:
+**Step 3 — Claim a task.**
+On the "Bounties" board, open a task marked "Open" and click "Claim & stake [amount] [GEN/USDC]". Your collateral is locked as skin-in-the-game. The task moves to "In progress".
+
+**Step 4 — Submit your work.**
+Complete the work and host it publicly (gist, PR, blog post). Paste the URL in the modal and click "Submit for review". The task moves to "Awaiting jury". Sample link:
 `https://gist.githubusercontent.com/phu1271997/47971261102d0a27411673f960d7fabe/raw/497e1ccd1acfac618916aa47ca64d10942d7736f/deliverable.md`
 
-**Step 4 — Run the AI jury.**
-Click "Run the AI jury" and wait a moment. The AI reads your work and returns a verdict with its reasoning.
+**Step 5 — Run the AI jury.**
+On GenLayer: click "Run the AI jury" and wait ~45 seconds. Validators each run a different LLM, read your deliverable on-chain, and reach consensus on a verdict (Genuine / AI-generated / Plagiarized / Unclear) with confidence, spec-match scores, and written reasoning.
+On Arc: the jury runs on GenLayer and the verdict is relayed by an oracle — no manual button needed.
 
-**Step 5 — Get paid.**
-If the verdict is Genuine, click "Withdraw" to receive the reward plus your stake.
+**Step 6 — Get paid (or appeal).**
+If the verdict is Genuine (confidence ≥ 60%, spec-match ≥ 50%), the worker is credited reward + stake. Click the glowing "Withdraw [amount] [GEN/USDC]" button in the header to pull funds to your wallet. If rejected, the worker can click "Appeal · bond [amount]" to force a stricter second review. If the worker does not appeal, the client clicks "Finalize & claim escrow" to recover the funds.
 
-**Want to see it fail?** In step 3, submit an AI-written or copied page instead; the verdict comes back AI-generated or Plagiarized and no payment is released. The worker can then click "Appeal".
+**Want to post a task instead?** Go to the "Post" tab, fill in a title, spec, rules, reward, and worker stake (or click "use sample"), and click "Escrow reward & post". A different wallet then claims and submits. If nobody claims it, you can click "Cancel & refund" to get your escrowed reward back.
 
-**Prefer to post a task?** Use the "Post a bounty" tab, fill in the details (or click "use sample"), and click "Escrow reward & post". A different wallet then claims and submits.
+**Want to see it fail?** In step 4, submit an AI-written or copied page instead. The verdict comes back AI-generated or Plagiarized and no payment is released. The worker can then appeal.
 
 **If you get stuck:** if no result appears, click "Run the AI jury" once more. A MetaMask site warning is a false alarm; the app is safe.
 
 ---
 
-## Expected verification outcome (496 / 500)
+## Expected verification outcome (412 / 500)
 ```
-Open the app; reading needs no wallet. You will see three settled bounties decided by validator consensus: one GENUINE (95% confidence, worker paid), one AI_GENERATED, and one PLAGIARIZED, each showing the AI's own written reason quoting the deliverable it read. These verdicts were produced on-chain by GenLayer validators, not by the app server. Open any bounty to see the confidence and spec-match scores, and check the contract on the Studio explorer to confirm the adjudication transactions.
+Open the app; reading needs no wallet. You will see three settled bounties decided by GenLayer validator consensus: GENUINE (worker paid), AI_GENERATED, and PLAGIARIZED—each displaying the AI's on-chain reasoning and confidence score. Visit the Explorer tab for full case logs or toggle to Arc to view bounties settled in USDC. Adjudication and settlement transactions can be verified on both explorers.
 ```
 
 ---

@@ -67,7 +67,7 @@ export default function Header({ route = '', account, balance, credit, onConnect
           </>
         ) : (
           <Button onClick={onConnect} busy={connecting}>
-            Connect MetaMask
+            Connect Wallet
           </Button>
         )}
       </div>

@@ -89,9 +89,9 @@ export default function CreateBounty({ account, onDone, notify }) {
 
 export function friendly(err) {
   const raw = err?.shortMessage || err?.details || err?.message || String(err);
-  if (/user rejected|denied/i.test(raw)) return 'Signature rejected in MetaMask.';
+  if (/user rejected|denied/i.test(raw)) return 'Signature rejected in wallet.';
   if (/insufficient/i.test(raw)) return 'Insufficient balance on the selected network. Fund your wallet and try again.';
-  if (/from/i.test(raw) && /rpc/i.test(raw)) return 'MetaMask is on the wrong network. Reconnect to switch to the selected chain.';
+  if (/from/i.test(raw) && /rpc/i.test(raw)) return 'Wallet is on the wrong network. Reconnect to switch to the selected chain.';
   // surface a UserError reason if present
   const m = raw.match(/UserError[^"]*"?([^"}]+)"?/);
   return m ? m[1] : raw.slice(0, 180);
