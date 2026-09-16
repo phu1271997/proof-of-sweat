@@ -93,13 +93,15 @@ export async function fetchNativeBalance(address) {
 
 // ── writes ───────────────────────────────────────────────────────────────────
 /**
- * Send a state-changing tx through MetaMask and wait until validators accept it.
+ * Send a state-changing tx through the connected wallet and wait until validators accept it.
  * Returns { hash, receipt }.
  */
 export async function send(account, functionName, args = [], value = 0n, onStatus) {
   const client = writeClient(account);
-  onStatus?.('Awaiting signature in MetaMask…');
-  const hash = await client.writeContract({ address: CONTRACT, functionName, args, value });
+  onStatus?.('Estimating transaction fees…');
+  const fees = await client.estimateTransactionFees({});
+  onStatus?.('Awaiting signature in wallet…');
+  const hash = await client.writeContract({ address: CONTRACT, functionName, args, value, fees });
   onStatus?.('Submitted. Validators reaching consensus…');
   const receipt = await client.waitForTransactionReceipt({
     hash,
