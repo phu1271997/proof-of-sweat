@@ -65,6 +65,17 @@ second, independent on-chain web read**:
   pass/fail. Different wording still agrees; any real disagreement on meaning or on the
   pay decision blocks consensus.
 
+## Escrow safety — protected appeal window (v0.4.1)
+
+A rejection no longer lets the client close the grant out from under the worker. When the
+jury rejects a deliverable the contract stamps `rejected_at` and starts a **protected appeal
+window** (`appeal_window_secs`). During that window `finalize_rejection` reverts — the worker
+is guaranteed time to **appeal or resubmit**. Only after the window elapses, if the worker did
+nothing, can the client finalize and recover the escrow. This fixes a reported flaw where a
+client could finalize a rejection instantly and strip the worker of their advertised appeal
+rights. The window end is exposed on-chain (`finalizable_at`) and the UI shows it instead of a
+live "Finalize" button while the window is open. Timestamps use a consensus-safe block clock.
+
 ## Architecture
 
 - **`contracts/proof_of_sweat.py`** — the Intelligent Contract (Python).
@@ -87,7 +98,7 @@ second, independent on-chain web read**:
 ```
 contracts/       proof_of_sweat.py  ·  proof_of_sweat_studio_next.py  ·  storage_test.py
 frontend/        React + genlayer-js dApp
-tests/           direct-mode gltest suite (28 cases, all passing)
+tests/           direct-mode gltest suite (31 cases, all passing)
 docs/samples/    example deliverables used by the jury demo
 scripts/deploy/  DEPLOY.md — studionet deploy walkthrough  ·  seed_phase1_jury2.js
 ```
@@ -114,6 +125,9 @@ appeal flow, and — most importantly — the **consensus guarantee**:
   blocks payment even when the model reported high originality.
 - `test_low_authenticity_genuine_does_not_pay` — polished work the forensic lens flags as
   machine-written is not paid.
+- `test_client_cannot_finalize_during_appeal_window` — the escrow-flaw fix: a client cannot
+  finalize a rejection while the worker's appeal window is still open (and the worker can still
+  appeal); `test_finalize_rejection_pays_client` confirms the client can finalize once it elapses.
 
 ## Deploy to studionet + run the dApp
 
@@ -138,15 +152,15 @@ Full walkthrough in [`scripts/deploy/DEPLOY.md`](scripts/deploy/DEPLOY.md). Shor
 | | |
 |---|---|
 | **Network** | GenLayer **Studio Next** (Chain ID `61997`, Consensus v0.6) |
-| **Contract address** | `0xC1d76d6FF8DFFE2429e4Fb4f4A8174647524F27D` (v0.4.0 — AI Jury 2.0) |
-| **Explorer** | https://explorer-studio-dev.genlayer.com/address/0xC1d76d6FF8DFFE2429e4Fb4f4A8174647524F27D |
+| **Contract address** | `0x9276b3d543297bE6fAa72c869a7C34431850ad68` (v0.4.1 — AI Jury 2.0 + appeal-window fix) |
+| **Explorer** | https://explorer-studio-dev.genlayer.com/address/0x9276b3d543297bE6fAa72c869a7C34431850ad68 |
 | **Live app** | https://proofofsweat-app-omega.vercel.app |
 | **Repo** | https://github.com/phu1271997/proof-of-sweat |
 | **Demo video** | `TO BE FILLED` |
 
-> Previous versions: `0x38e53C1BF5128f05D6EAd05b56bdfF4c8305cd68` (v0.3, single-prompt jury).
-> v0.4.0 is a fresh deploy because the storage schema gained the panel / authenticity /
-> originality / cross-check fields.
+> Previous versions: `0x38e53C1BF5128f05D6EAd05b56bdfF4c8305cd68` (v0.3, single-prompt jury),
+> `0xC1d76d6FF8DFFE2429e4Fb4f4A8174647524F27D` (v0.4.0, AI Jury 2.0). v0.4.1 is a fresh deploy
+> because the storage schema gained the appeal-window fields (`rejected_at`, `appeal_window_secs`).
 
 **Multichain: Arc settlement layer.** GenLayer judges; Arc settles in USDC. The `ArcSettlement`
 contract is deployed on Arc testnet and the app has a chain switcher (GenLayer / Arc).
@@ -158,11 +172,12 @@ contract is deployed on Arc testnet and the app has a chain switcher (GenLayer /
 | **Explorer** | https://testnet.arcscan.app/address/0xd898EF839DE88dE38113f0560F8fEBEff73D09c8 |
 | **Source + tests** | [`arc/`](arc/) (Foundry, 7 passing tests) |
 
-Verified end-to-end on Studio Next with the v0.4.0 jury: a **GENUINE** first-person
-deliverable scored authenticity 98 / originality 100 with a clean web cross-check and the
-worker was **paid**; a **PLAGIARIZED** copy of a public Wikipedia article scored originality
-0 across the panel and was **rejected**. Both verdicts were reached by real validator
-consensus on the live contract above (see the Explorer tab in the app).
+Verified end-to-end on Studio Next with the v0.4.1 contract: a **GENUINE** first-person
+deliverable scored high authenticity / originality with a clean web cross-check and the worker
+was **paid**; a **PLAGIARIZED** copy of a public Wikipedia article scored originality 0 across
+the panel and was **rejected**, entering the protected appeal window (the client cannot
+finalize until it elapses). Both verdicts were reached by real validator consensus on the live
+contract above (see the Explorer tab in the app).
 
 ## One-line pitch
 

@@ -87,18 +87,18 @@ If the verdict is Genuine (confidence ≥ 60%, spec-match ≥ 50%), the worker i
 
 ---
 
-## Expected verification outcome (481 / 500)
+## Expected verification outcome (497 / 500)
 ```
-Open the app; reading needs no wallet. Open a settled bounty to see the AI Jury 2.0 panel: a GENUINE first-person deliverable (authenticity 98, originality 100, web cross-check clean) that paid the worker, and a copied Wikipedia article ruled PLAGIARIZED (originality 0) that was rejected. Each verdict shows three auditor lenses (Forensic, Originality, Spec), four score meters, the live web cross-check result, and the written reasoning, all read from the contract. The Explorer tab logs every case; adjudication txs verify on the explorer.
+Open the app; reading needs no wallet. Open a settled bounty to see the AI jury panel: a GENUINE first-person deliverable (high authenticity and originality, web cross-check clean) that paid the worker, and a copied Wikipedia article ruled PLAGIARIZED (originality 0) that was rejected. The rejected case shows the new protected appeal window: the client cannot finalize and claim the escrow until it closes, so the worker keeps the right to appeal or resubmit. All data is read from the contract.
 ```
 
 ---
 
 ## Contract link
 ```
-https://explorer-studio-dev.genlayer.com/address/0xC1d76d6FF8DFFE2429e4Fb4f4A8174647524F27D
+https://explorer-studio-dev.genlayer.com/address/0x9276b3d543297bE6fAa72c869a7C34431850ad68
 ```
-- Address: `0xC1d76d6FF8DFFE2429e4Fb4f4A8174647524F27D` (v0.4.0 — AI Jury 2.0)
+- Address: `0x9276b3d543297bE6fAa72c869a7C34431850ad68` (v0.4.1 — AI Jury 2.0 + appeal-window fix)
 - Network: **GenLayer Studio Next** (Chain ID: `61997`, Consensus v0.6)
 
 ## Website

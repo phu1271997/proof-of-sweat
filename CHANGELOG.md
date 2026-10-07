@@ -1,5 +1,35 @@
 # Changelog
 
+## [1.2.1] — Escrow fix: enforced appeal window (judge feedback)
+
+Fixes a reported escrow flaw: *"the sponsor can close a grant after an initial partial
+settlement, preventing the builder from exercising their advertised appeal rights."*
+Previously `finalize_rejection` had no delay, so a client could finalize a rejection in the
+same breath as the verdict and slash the worker before any appeal.
+
+### Contract (`contracts/proof_of_sweat_studio_next.py`, `contracts/proof_of_sweat.py`) → v0.4.1
+- **Protected appeal window.** A rejecting verdict now stamps `rejected_at` and opens a window
+  (`appeal_window_secs`, default 300s). `finalize_rejection` reverts until the window elapses,
+  so the worker is guaranteed time to **appeal or resubmit**. After it elapses with no action,
+  the client can finalize and recover escrow as before.
+- Consensus-safe block clock via `datetime.now(UTC)` (GenVM feeds all validators the same time;
+  verified on-chain — the rejecting adjudication reaches consensus and stores `rejected_at`).
+- `get_bounty` now returns `rejected_at` + `finalizable_at`; `get_config` returns `appeal_window_secs`.
+
+### Tests (`tests/`)
+- 28 → **31 passing**. New: client cannot finalize during the window (worker can still appeal),
+  worker can still resubmit during the window, `finalizable_at` is exposed; the existing finalize
+  test now warps past the window first.
+
+### Frontend (`frontend/`)
+- While the appeal window is open, the client sees "Appeal window open until <time>" instead of a
+  live **Finalize** button, so the UI matches the on-chain guarantee.
+
+### Redeployed to GenLayer Studio Next
+- New contract (schema gained `rejected_at` / `appeal_window_secs`):
+  `0x9276b3d543297bE6fAa72c869a7C34431850ad68`. Reseeded end-to-end (GENUINE paid, PLAGIARIZED
+  rejected and now sitting in its protected appeal window).
+
 ## [1.2.0] — AI Jury 2.0: multi-perspective panel + live web cross-check (Milestone — Phase 1)
 
 The heart of the product — the adjudication — was rebuilt. This is a major-feature /
