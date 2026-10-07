@@ -138,11 +138,15 @@ Full walkthrough in [`scripts/deploy/DEPLOY.md`](scripts/deploy/DEPLOY.md). Shor
 | | |
 |---|---|
 | **Network** | GenLayer **Studio Next** (Chain ID `61997`, Consensus v0.6) |
-| **Contract address** | `0x38e53C1BF5128f05D6EAd05b56bdfF4c8305cd68` |
-| **Explorer** | https://explorer-studio-dev.genlayer.com/address/0x38e53C1BF5128f05D6EAd05b56bdfF4c8305cd68 |
+| **Contract address** | `0xC1d76d6FF8DFFE2429e4Fb4f4A8174647524F27D` (v0.4.0 — AI Jury 2.0) |
+| **Explorer** | https://explorer-studio-dev.genlayer.com/address/0xC1d76d6FF8DFFE2429e4Fb4f4A8174647524F27D |
 | **Live app** | https://proofofsweat-app.vercel.app |
 | **Repo** | https://github.com/phu1271997/proof-of-sweat |
 | **Demo video** | `TO BE FILLED` |
+
+> Previous versions: `0x38e53C1BF5128f05D6EAd05b56bdfF4c8305cd68` (v0.3, single-prompt jury).
+> v0.4.0 is a fresh deploy because the storage schema gained the panel / authenticity /
+> originality / cross-check fields.
 
 **Multichain: Arc settlement layer.** GenLayer judges; Arc settles in USDC. The `ArcSettlement`
 contract is deployed on Arc testnet and the app has a chain switcher (GenLayer / Arc).
@@ -154,9 +158,11 @@ contract is deployed on Arc testnet and the app has a chain switcher (GenLayer /
 | **Explorer** | https://testnet.arcscan.app/address/0xd898EF839DE88dE38113f0560F8fEBEff73D09c8 |
 | **Source + tests** | [`arc/`](arc/) (Foundry, 7 passing tests) |
 
-Verified end-to-end on studionet: the AI jury correctly rules **GENUINE** (original
-first-person work → worker paid), **AI_GENERATED** (hollow boilerplate → rejected), and
-**PLAGIARIZED** (copied MDN page, caught by its embedded site chrome → rejected).
+Verified end-to-end on Studio Next with the v0.4.0 jury: a **GENUINE** first-person
+deliverable scored authenticity 98 / originality 100 with a clean web cross-check and the
+worker was **paid**; a **PLAGIARIZED** copy of a public Wikipedia article scored originality
+0 across the panel and was **rejected**. Both verdicts were reached by real validator
+consensus on the live contract above (see the Explorer tab in the app).
 
 ## One-line pitch
 

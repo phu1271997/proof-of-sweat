@@ -87,18 +87,18 @@ If the verdict is Genuine (confidence ≥ 60%, spec-match ≥ 50%), the worker i
 
 ---
 
-## Expected verification outcome (412 / 500)
+## Expected verification outcome (481 / 500)
 ```
-Open the app; reading needs no wallet. You will see three settled bounties decided by GenLayer validator consensus: GENUINE (worker paid), AI_GENERATED, and PLAGIARIZED—each displaying the AI's on-chain reasoning and confidence score. Visit the Explorer tab for full case logs or toggle to Arc to view bounties settled in USDC. Adjudication and settlement transactions can be verified on both explorers.
+Open the app; reading needs no wallet. Open a settled bounty to see the AI Jury 2.0 panel: a GENUINE first-person deliverable (authenticity 98, originality 100, web cross-check clean) that paid the worker, and a copied Wikipedia article ruled PLAGIARIZED (originality 0) that was rejected. Each verdict shows three auditor lenses (Forensic, Originality, Spec), four score meters, the live web cross-check result, and the written reasoning, all read from the contract. The Explorer tab logs every case; adjudication txs verify on the explorer.
 ```
 
 ---
 
 ## Contract link
 ```
-https://explorer-studio-dev.genlayer.com/address/0x38e53C1BF5128f05D6EAd05b56bdfF4c8305cd68
+https://explorer-studio-dev.genlayer.com/address/0xC1d76d6FF8DFFE2429e4Fb4f4A8174647524F27D
 ```
-- Address: `0x38e53C1BF5128f05D6EAd05b56bdfF4c8305cd68`
+- Address: `0xC1d76d6FF8DFFE2429e4Fb4f4A8174647524F27D` (v0.4.0 — AI Jury 2.0)
 - Network: **GenLayer Studio Next** (Chain ID: `61997`, Consensus v0.6)
 
 ## Website

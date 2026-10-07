@@ -1,7 +1,10 @@
 import { defineChain } from 'viem';
 
-export const GEN_CONTRACT = import.meta.env.VITE_CONTRACT_ADDRESS || '';
-export const ARC_CONTRACT = import.meta.env.VITE_ARC_CONTRACT_ADDRESS || '';
+// Fallbacks keep the app pointed at the live contracts if a build env var is missing.
+export const GEN_CONTRACT =
+  import.meta.env.VITE_CONTRACT_ADDRESS || '0xC1d76d6FF8DFFE2429e4Fb4f4A8174647524F27D';
+export const ARC_CONTRACT =
+  import.meta.env.VITE_ARC_CONTRACT_ADDRESS || '0xd898EF839DE88dE38113f0560F8fEBEff73D09c8';
 
 // Arc testnet: USDC is the native gas token (18 decimals), same precision as GEN.
 export const arcChain = defineChain({
