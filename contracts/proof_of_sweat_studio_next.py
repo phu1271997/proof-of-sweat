@@ -1,4 +1,4 @@
-# v0.3.0
+# v0.4.0
 # { "Depends": "py-genlayer:5jycge4q8k23462jtb0b9fyey1s9qz928sz2nbrd9mg4sxqg2qng" }
 from genlayer import *
 import genlayer as gl
@@ -18,7 +18,22 @@ from dataclasses import dataclass
 # it needs (1) direct web reading with no oracle and (2) subjective judgment that
 # converges across independent, diverse models.
 #
-# Consensus checks MEANING (the verdict), not JSON shape — see validator_fn.
+# ── v0.4.0 — AI JURY 2.0 ────────────────────────────────────────────────────
+# The jury was upgraded from a single generic prompt over a single page into a
+# MULTI-PERSPECTIVE PANEL backed by a LIVE WEB CROSS-CHECK:
+#   • It reads the deliverable, then does a SECOND independent web read — a live
+#     search for a distinctive phrase from the work — to detect plagiarism from
+#     real external evidence instead of guessing from page chrome.
+#   • One structured reasoning pass runs THREE auditor lenses (Forensic authorship,
+#     Originality/plagiarism, Spec-compliance) and returns a per-lens breakdown
+#     plus separate authenticity & originality scores — not just one number.
+#   • Payment now requires FOUR gates to pass (verdict + confidence + spec-match +
+#     authenticity + originality), and validator consensus checks EVERY gate, so
+#     two validators who merely phrase things differently still agree while any
+#     real disagreement on meaning or on the pay/no-pay decision blocks consensus.
+#
+# Consensus checks MEANING (the verdict + every pay gate), not JSON shape — see
+# validator_fn.
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Verdict categories returned by the AI jury.
@@ -37,8 +52,15 @@ S_APPEALED = 5      # worker staked an appeal bond, awaiting re-adjudication
 S_RESOLVED_FRAUD = 6  # fraud upheld / client finalized — client compensated (terminal)
 S_CANCELLED = 7     # client cancelled an unclaimed bounty (terminal)
 
+# Cross-check outcome (stored u8): did the live web corroborate originality?
+X_UNKNOWN = 0       # no external corroboration available (search failed/blocked)
+X_CLEAN = 1         # the distinctive phrase was NOT found verbatim online
+X_HIT = 2           # the distinctive phrase WAS found verbatim online (plagiarism signal)
+
 # How much text of the deliverable we feed the model (keeps the prompt bounded).
 _MAX_EVIDENCE_CHARS = 8000
+# How much of the live search result page we feed the model for the cross-check.
+_MAX_CROSSCHECK_CHARS = 3500
 
 
 @gl.evm.contract_interface
@@ -69,6 +91,78 @@ def _as_int(value, default: int) -> int:
         return default
 
 
+def _clamp(value: int) -> int:
+    return max(0, min(value, 100))
+
+
+def _url_q(s: str) -> str:
+    """Percent-encode a string for use in a URL query (stdlib-free so the
+    genvm sandbox never has to whitelist urllib). Keeps unreserved chars."""
+    safe = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.~"
+    out = []
+    for ch in s:
+        if ch in safe:
+            out.append(ch)
+        elif ch == " ":
+            out.append("+")
+        else:
+            for byte in ch.encode("utf-8"):
+                out.append("%" + format(byte, "02X"))
+    return "".join(out)
+
+
+_PHRASE_WORDS = 10  # short enough to match a search-result snippet verbatim
+
+
+def _distinctive_phrase(text: str) -> str:
+    """Pick a distinctive, quotable phrase from the deliverable for the web
+    cross-check. Deterministic (every validator derives the SAME phrase from the
+    SAME page): a clean run of words from the longest 'sentence-like' span,
+    trimmed to ~10 words so an exact quoted search can match a result snippet.
+
+    We strip citation/footnote brackets (e.g. "[1]") and skip spans that look
+    like navigation/boilerplate so the search targets the real body text.
+    """
+    # Drop bracketed footnote markers that break verbatim matching.
+    cleaned = []
+    skip = False
+    for ch in text:
+        if ch == "[":
+            skip = True
+        elif ch == "]":
+            skip = False
+        elif not skip:
+            cleaned.append(ch)
+    flat = " ".join("".join(cleaned).split())
+    # Split on sentence terminators without regex (keeps the runner happy).
+    for ch in [". ", "! ", "? ", "。"]:
+        flat = flat.replace(ch, "\n")
+    candidates = [s.strip() for s in flat.split("\n")]
+    best = ""
+    for s in candidates:
+        words = s.split(" ")
+        if len(words) < 6:
+            continue
+        low = s.lower()
+        if any(junk in low for junk in (
+            "skip to", "cookie", "sign in", "subscribe", "menu", "copyright",
+            "all rights reserved", "privacy policy", "terms of service", "edit",
+        )):
+            continue
+        # Prefer the longest qualifying sentence; it is the most searchable.
+        if len(words) > len(best.split(" ")):
+            best = s
+    if best == "":
+        # Fallback: first words of the whole document.
+        best = " ".join(flat.replace("\n", " ").split(" ")[:_PHRASE_WORDS])
+    # Take a run from the MIDDLE of the sentence — less likely to be a generic opener.
+    words = best.split(" ")
+    if len(words) > _PHRASE_WORDS:
+        start = (len(words) - _PHRASE_WORDS) // 2
+        words = words[start:start + _PHRASE_WORDS]
+    return " ".join(words).strip()
+
+
 @allow_storage
 @dataclass
 class Bounty:
@@ -86,6 +180,10 @@ class Bounty:
     verdict: str
     confidence: u8
     spec_match: u8
+    authenticity: u8        # v0.4 forensic-lens score: human authorship (0-100)
+    originality: u8         # v0.4 plagiarism-lens score: originality (0-100)
+    cross_check: u8         # v0.4 live web cross-check outcome (X_UNKNOWN/CLEAN/HIT)
+    panel: str              # v0.4 JSON array of the per-lens auditor findings
     reason: str
     appealed: bool
 
@@ -104,6 +202,8 @@ class Contract(gl.contract.Contract):
     next_id: bigint
     confidence_threshold: u8             # min confidence to approve a GENUINE verdict
     min_spec_match: u8                   # min spec-match score to approve
+    min_authenticity: u8                 # v0.4 min forensic authorship score to approve
+    min_originality: u8                  # v0.4 min originality score to approve
 
     def __init__(self):
         # Only scalars here. TreeMap / DynArray fields auto-initialize to empty;
@@ -111,6 +211,8 @@ class Contract(gl.contract.Contract):
         self.next_id = bigint(0)
         self.confidence_threshold = u8(60)
         self.min_spec_match = u8(50)
+        self.min_authenticity = u8(55)
+        self.min_originality = u8(55)
 
     # ── internal helpers ─────────────────────────────────────────────────────
     def _credit(self, addr: str, amount: bigint) -> None:
@@ -159,6 +261,10 @@ class Contract(gl.contract.Contract):
             verdict="",
             confidence=u8(0),
             spec_match=u8(0),
+            authenticity=u8(0),
+            originality=u8(0),
+            cross_check=u8(X_UNKNOWN),
+            panel="",
             reason="",
             appealed=False,
         )
@@ -206,7 +312,8 @@ class Contract(gl.contract.Contract):
 
     @gl.public.write
     def adjudicate(self, bounty_id: str) -> str:
-        """Run the AI jury over the deliverable and settle (or open an appeal window)."""
+        """Run the multi-perspective AI jury over the deliverable and settle
+        (or open an appeal window)."""
         b = self._get(bounty_id)
         if b.status not in (u8(S_SUBMITTED), u8(S_APPEALED)):
             raise gl.vm.UserError("bounty is not awaiting review")
@@ -219,23 +326,45 @@ class Contract(gl.contract.Contract):
         is_appeal = b.status == u8(S_APPEALED)
         conf_threshold = int(self.confidence_threshold)
         spec_threshold = int(self.min_spec_match)
+        auth_threshold = int(self.min_authenticity)
+        orig_threshold = int(self.min_originality)
 
         def _payment_approved(d: dict) -> bool:
-            """Determine if a verdict meets the criteria to approve payment.
-
-            Payment is approved IF AND ONLY IF:
-              1. The verdict is GENUINE (not AI_GENERATED, PLAGIARIZED, or UNCLEAR)
-              2. Confidence is at or above the confidence threshold
-              3. Spec match score is at or above the min spec match threshold
-            """
+            """Approve payment IF AND ONLY IF the verdict is GENUINE and ALL
+            FOUR quality gates clear their thresholds. Adding the authenticity
+            and originality gates (v0.4) means a slick, polished deliverable that
+            the forensic lens still flags as machine-written, or that the
+            originality lens / live cross-check flags as copied, is NOT paid even
+            if it reads as 'on-spec'."""
             if not isinstance(d, dict):
                 return False
             v = d.get("verdict")
-            c = max(0, min(_as_int(d.get("confidence", 0), 0), 100))
-            s = max(0, min(_as_int(d.get("spec_match", 0), 0), 100))
-            return v == V_GENUINE and c >= conf_threshold and s >= spec_threshold
+            c = _clamp(_as_int(d.get("confidence", 0), 0))
+            s = _clamp(_as_int(d.get("spec_match", 0), 0))
+            a = _clamp(_as_int(d.get("authenticity", 0), 0))
+            o = _clamp(_as_int(d.get("originality", 0), 0))
+            return (
+                v == V_GENUINE
+                and c >= conf_threshold
+                and s >= spec_threshold
+                and a >= auth_threshold
+                and o >= orig_threshold
+            )
 
-        def leader_fn():
+        def _pay_gates(d: dict) -> tuple:
+            """The directional pass/fail of each gate — what validators must
+            agree on (robust to small numeric wobble between models)."""
+            if not isinstance(d, dict):
+                return (False, False, False, False, False)
+            v = d.get("verdict") == V_GENUINE
+            c = _clamp(_as_int(d.get("confidence", 0), 0)) >= conf_threshold
+            s = _clamp(_as_int(d.get("spec_match", 0), 0)) >= spec_threshold
+            a = _clamp(_as_int(d.get("authenticity", 0), 0)) >= auth_threshold
+            o = _clamp(_as_int(d.get("originality", 0), 0)) >= orig_threshold
+            return (v, c, s, a, o)
+
+        def _run_panel() -> dict:
+            # 1) Read the deliverable itself.
             try:
                 page = gl.nondet.web.render(url, mode="text")
             except Exception:
@@ -245,21 +374,71 @@ class Contract(gl.contract.Contract):
                     "verdict": V_UNCLEAR,
                     "confidence": 90,
                     "spec_match": 0,
+                    "authenticity": 0,
+                    "originality": 0,
+                    "cross_check": X_UNKNOWN,
+                    "panel": [
+                        {"lens": "Intake", "score": 0,
+                         "finding": "The deliverable URL returned no readable content (dead link, empty, or blocked)."},
+                    ],
                     "reason": "The deliverable URL returned no readable content (dead link, empty, or blocked).",
                     "payment_approved": False,
                 }
             evidence = page[:_MAX_EVIDENCE_CHARS]
+
+            # 2) LIVE WEB CROSS-CHECK — a SECOND, independent web read.
+            #    Search the open web for a distinctive phrase from the work. If
+            #    the exact phrase surfaces elsewhere, that is concrete external
+            #    evidence of copying; if the search is blocked, we degrade to
+            #    'no corroboration' rather than punishing the worker.
+            phrase = _distinctive_phrase(evidence)
+            cross_text = ""
+            cross_check = X_UNKNOWN
+            try:
+                q = _url_q('"' + phrase + '"')
+                search_url = "https://html.duckduckgo.com/html/?q=" + q
+                cross_text = gl.nondet.web.render(search_url, mode="text")[:_MAX_CROSSCHECK_CHARS]
+                if len(cross_text.strip()) > 0:
+                    # A verbatim hit is a strong, machine-checkable plagiarism signal.
+                    cross_check = X_HIT if phrase.lower() in cross_text.lower() else X_CLEAN
+            except Exception:
+                cross_text = ""
+                cross_check = X_UNKNOWN
+
+            cross_summary = {
+                X_HIT: "A verbatim copy of a distinctive phrase from this deliverable was FOUND on the open web.",
+                X_CLEAN: "No verbatim copy of a distinctive phrase from this deliverable was found on the open web.",
+                X_UNKNOWN: "No external corroboration was available (the web search returned nothing).",
+            }[cross_check]
+
             strictness = (
                 "This is an APPEAL of a prior fraud ruling. Re-examine carefully and overturn "
                 "to GENUINE if the earlier call was not backed by concrete evidence."
                 if is_appeal
                 else "This is the first review."
             )
-            prompt = f"""You are an impartial work-authenticity auditor for a paid bounty.
+
+            # 3) ONE structured reasoning pass over THREE auditor lenses.
+            prompt = f"""You are a three-member authenticity PANEL adjudicating a paid work bounty.
 {strictness}
 
-Presume the work is GENUINE. Only rule against it when you can point to CONCRETE evidence.
-A fair, honest worker must be paid; do not punish competent writing for merely being polished.
+Reason explicitly as THREE independent auditors, each with a narrow mandate, then
+synthesise ONE verdict. Presume the work is GENUINE and only rule against it when a
+panelist can cite CONCRETE evidence. A fair, honest worker must be paid; do not punish
+competent writing merely for being polished.
+
+PANEL MEMBERS:
+  1. FORENSIC AUTHORSHIP — Was this written by a human doing real work, or machine-
+     generated? Human hallmarks: specific lived detail, concrete named facts, a point
+     of view, uneven but purposeful structure. AI hallmarks: hollow generic phrasing,
+     fabricated or self-contradictory specifics, uniform padding, lists that say nothing.
+     Score authenticity 0-100 (100 = unmistakably human).
+  2. ORIGINALITY / PLAGIARISM — Is this the worker's own text or copied? Use the LIVE
+     WEB CROSS-CHECK result below as evidence. Verbatim passages, embedded site chrome
+     (e.g. "Skip to main content", cookie banners, doc-site navigation), or a confirmed
+     web match mean PLAGIARIZED. Score originality 0-100 (100 = fully original).
+  3. SPEC-COMPLIANCE — Independently of authenticity, does it satisfy what was asked?
+     Genuine work can still be off-spec. Score spec_match 0-100.
 
 BOUNTY SPEC (what the worker was asked to deliver):
 {spec}
@@ -267,39 +446,61 @@ BOUNTY SPEC (what the worker was asked to deliver):
 RULES THE WORKER MUST FOLLOW:
 {rules if len(rules.strip()) > 0 else "(no extra rules beyond producing genuine, original, on-spec work)"}
 
+LIVE WEB CROSS-CHECK:
+Distinctive phrase searched: "{phrase}"
+Result: {cross_summary}
+Raw search excerpt (may be empty):
+\"\"\"
+{cross_text}
+\"\"\"
+
 SUBMITTED DELIVERABLE — text extracted from {url}:
 \"\"\"
 {evidence}
 \"\"\"
 
-Choose exactly one verdict:
-  • PLAGIARIZED — only if the text is clearly copied from an external published source:
-    verbatim passages, embedded site navigation/boilerplate (e.g. "Skip to main content",
-    cookie banners, doc-site chrome), or an unmistakable match to known published material.
-  • AI_GENERATED — only with concrete hallmarks of machine generation: hollow generic
-    phrasing with no specific lived detail, fabricated or self-contradictory specifics,
-    uniform boilerplate, or padded lists that say nothing. Polish alone is NOT evidence.
-  • GENUINE — the deliverable is on-topic for the spec AND shows authentic authorship:
-    specific, concrete, first-hand or reasoned detail a real person would actually write.
-  • UNCLEAR — only if the content is empty/unreadable or you truly cannot decide.
-
-Judge spec match separately: genuine work can still be off-spec.
+Final verdict (exactly one):
+  • PLAGIARIZED — copied from an external source (verbatim passages, embedded site
+    chrome, or a confirmed web cross-check hit).
+  • AI_GENERATED — concrete hallmarks of machine generation. Polish alone is NOT evidence.
+  • GENUINE — on-topic AND authentic authorship: specific, concrete, first-hand or
+    reasoned detail a real person would actually write.
+  • UNCLEAR — content is empty/unreadable or you truly cannot decide.
 
 Reply with ONLY a JSON object, no prose:
 {{"verdict": "GENUINE" | "AI_GENERATED" | "PLAGIARIZED" | "UNCLEAR",
   "confidence": <integer 0-100, how sure you are of the verdict>,
-  "spec_match": <integer 0-100, how well it satisfies the spec>,
-  "reason": "<two sentences citing concrete evidence from the deliverable>"}}"""
+  "spec_match": <integer 0-100>,
+  "authenticity": <integer 0-100 from the Forensic Authorship lens>,
+  "originality": <integer 0-100 from the Originality/Plagiarism lens>,
+  "panel": [
+     {{"lens": "Forensic Authorship", "score": <0-100>, "finding": "<one sentence citing concrete evidence>"}},
+     {{"lens": "Originality", "score": <0-100>, "finding": "<one sentence; reference the web cross-check>"}},
+     {{"lens": "Spec Compliance", "score": <0-100>, "finding": "<one sentence>"}}
+  ],
+  "reason": "<two-sentence synthesis citing the strongest concrete evidence>"}}"""
             res = gl.nondet.exec_prompt(prompt, response_format="json")
             if not isinstance(res, dict):
                 res = {
                     "verdict": V_UNCLEAR,
                     "confidence": 0,
                     "spec_match": 0,
+                    "authenticity": 0,
+                    "originality": 0,
+                    "panel": [],
                     "reason": "Invalid response format from validator model.",
                 }
+            # Attach the deterministic cross-check outcome and the pay decision.
+            res["cross_check"] = cross_check
+            # Safety net: a confirmed verbatim web hit floors originality so a
+            # model that under-weights the cross-check still can't pay a copy.
+            if cross_check == X_HIT:
+                res["originality"] = min(_clamp(_as_int(res.get("originality", 0), 0)), 20)
             res["payment_approved"] = _payment_approved(res)
             return res
+
+        def leader_fn():
+            return _run_panel()
 
         def validator_fn(res) -> bool:
             # Leader must have returned successfully.
@@ -308,39 +509,50 @@ Reply with ONLY a JSON object, no prose:
             leader = res.calldata
             if not isinstance(leader, dict):
                 return False
-            mine = leader_fn()
+            mine = _run_panel()
             if not isinstance(mine, dict):
                 return False
 
-            # Validators must agree on:
-            # 1. The verdict category (GENUINE vs AI_GENERATED vs PLAGIARIZED vs UNCLEAR)
-            # 2. The final payment decision (including confidence & spec-match thresholds)
-            #
-            # Crucial: Two validators who both rule GENUINE must NOT reach consensus if one
-            # thinks the confidence/spec-match thresholds are met to pay the worker, while
-            # the other thinks thresholds are not met (e.g. low confidence or poor spec match).
+            # Validators must agree on the MEANING of the judgment:
+            #   1. the verdict category, and
+            #   2. the full pay/no-pay decision — EVERY gate (verdict, confidence,
+            #      spec-match, authenticity, originality) must land on the same
+            #      side of its threshold.
+            # They do NOT need identical numbers or identical wording — only the
+            # same directional outcome on each gate. This is what lets two honest
+            # models agree while any real disagreement on meaning blocks consensus.
             verdict_match = mine.get("verdict") == leader.get("verdict")
-            payment_match = _payment_approved(mine) == _payment_approved(leader)
-
-            return verdict_match and payment_match
+            gates_match = _pay_gates(mine) == _pay_gates(leader)
+            return verdict_match and gates_match
 
         # gl.vm.run_nondet is the recommended API (sandboxes validator errors).
-        # NOTE for deploy: if this Studio build raises AttributeError on run_nondet,
-        # change it to gl.vm.run_nondet_unsafe (same call shape) — a runtime limit,
-        # not a design choice. This is documented in the README.
         result = gl.vm.run_nondet(leader_fn, validator_fn)
 
-        verdict = result.get("verdict", V_UNCLEAR) if isinstance(result, dict) else V_UNCLEAR
-        confidence = _as_int(result.get("confidence", 0) if isinstance(result, dict) else 0, 0)
-        spec_match = _as_int(result.get("spec_match", 0) if isinstance(result, dict) else 0, 0)
-        reason = str(result.get("reason", "") if isinstance(result, dict) else "")[:1000]
+        if not isinstance(result, dict):
+            result = {}
 
-        confidence = max(0, min(confidence, 100))
-        spec_match = max(0, min(spec_match, 100))
+        verdict = result.get("verdict", V_UNCLEAR)
+        confidence = _clamp(_as_int(result.get("confidence", 0), 0))
+        spec_match = _clamp(_as_int(result.get("spec_match", 0), 0))
+        authenticity = _clamp(_as_int(result.get("authenticity", 0), 0))
+        originality = _clamp(_as_int(result.get("originality", 0), 0))
+        cross_check = _as_int(result.get("cross_check", X_UNKNOWN), X_UNKNOWN)
+        if cross_check not in (X_UNKNOWN, X_CLEAN, X_HIT):
+            cross_check = X_UNKNOWN
+        reason = str(result.get("reason", ""))[:1000]
+        panel_val = result.get("panel", [])
+        try:
+            panel_json = json.dumps(panel_val)[:2000]
+        except Exception:
+            panel_json = "[]"
 
         b.verdict = verdict
         b.confidence = u8(confidence)
         b.spec_match = u8(spec_match)
+        b.authenticity = u8(authenticity)
+        b.originality = u8(originality)
+        b.cross_check = u8(cross_check)
+        b.panel = panel_json
         b.reason = reason
 
         approve = _payment_approved(result)
@@ -411,6 +623,10 @@ Reply with ONLY a JSON object, no prose:
         return self.bounties[bounty_id]
 
     def _to_dict(self, b: Bounty) -> dict:
+        try:
+            panel = json.loads(b.panel) if b.panel else []
+        except Exception:
+            panel = []
         return {
             "id": b.id,
             "client": b.client,
@@ -426,6 +642,10 @@ Reply with ONLY a JSON object, no prose:
             "verdict": b.verdict,
             "confidence": int(b.confidence),
             "spec_match": int(b.spec_match),
+            "authenticity": int(b.authenticity),
+            "originality": int(b.originality),
+            "cross_check": int(b.cross_check),
+            "panel": panel,
             "reason": b.reason,
             "appealed": b.appealed,
         }
@@ -467,5 +687,7 @@ Reply with ONLY a JSON object, no prose:
         return json.dumps({
             "confidence_threshold": int(self.confidence_threshold),
             "min_spec_match": int(self.min_spec_match),
+            "min_authenticity": int(self.min_authenticity),
+            "min_originality": int(self.min_originality),
             "total_bounties": int(self.next_id),
         })
