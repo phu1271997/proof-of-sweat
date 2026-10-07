@@ -1,7 +1,8 @@
-# v0.4.0
+# v0.4.1
 # { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
 from genlayer import *
 import json
+import datetime
 from dataclasses import dataclass
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -55,6 +56,12 @@ X_UNKNOWN = 0       # no external corroboration available (search failed/blocked
 X_CLEAN = 1         # the distinctive phrase was NOT found verbatim online
 X_HIT = 2           # the distinctive phrase WAS found verbatim online (plagiarism signal)
 
+# Default appeal window (seconds): after a rejecting verdict the worker is
+# GUARANTEED this much time to appeal (or resubmit) before the client can close
+# the grant. Closes the escrow flaw where a client could finalize a rejection
+# instantly and strip the worker of their advertised appeal rights.
+_DEFAULT_APPEAL_WINDOW_SECS = 300
+
 # How much text of the deliverable we feed the model (keeps the prompt bounded).
 _MAX_EVIDENCE_CHARS = 8000
 # How much of the live search result page we feed the model for the cross-check.
@@ -91,6 +98,13 @@ def _as_int(value, default: int) -> int:
 
 def _clamp(value: int) -> int:
     return max(0, min(value, 100))
+
+
+def _now_epoch() -> int:
+    """Consensus-safe UTC epoch seconds. GenVM feeds all validators the same
+    block time into datetime.now(), so this is deterministic across the network
+    (gl.vm.get_timestamp() is not available on every runner; this pattern is)."""
+    return int(datetime.datetime.now(datetime.timezone.utc).timestamp())
 
 
 def _url_q(s: str) -> str:
@@ -184,6 +198,7 @@ class Bounty:
     panel: str              # v0.4 JSON array of the per-lens auditor findings
     reason: str
     appealed: bool
+    rejected_at: u256       # v0.4.1 epoch secs the bounty entered REJECTED (0 if never)
 
 
 class Contract(gl.Contract):
@@ -202,6 +217,7 @@ class Contract(gl.Contract):
     min_spec_match: u8                   # min spec-match score to approve
     min_authenticity: u8                 # v0.4 min forensic authorship score to approve
     min_originality: u8                  # v0.4 min originality score to approve
+    appeal_window_secs: u256             # v0.4.1 protected appeal window after a rejection
 
     def __init__(self):
         # Only scalars here. TreeMap / DynArray fields auto-initialize to empty;
@@ -211,6 +227,7 @@ class Contract(gl.Contract):
         self.min_spec_match = u8(50)
         self.min_authenticity = u8(55)
         self.min_originality = u8(55)
+        self.appeal_window_secs = u256(_DEFAULT_APPEAL_WINDOW_SECS)
 
     # ── internal helpers ─────────────────────────────────────────────────────
     def _credit(self, addr: str, amount: bigint) -> None:
@@ -265,6 +282,7 @@ class Contract(gl.Contract):
             panel="",
             reason="",
             appealed=False,
+            rejected_at=u256(0),
         )
         self.bounty_ids.append(bid)
         return bid
@@ -568,8 +586,11 @@ Reply with ONLY a JSON object, no prose:
                 self._credit(b.client, b.reward + b.worker_stake)
                 self._bump_rep_fraud(b.worker)
             else:
-                # First-pass fraud/unclear: open the appeal window. Funds stay escrowed.
+                # First-pass fraud/unclear: open the appeal window. Funds stay escrowed,
+                # and the worker is GUARANTEED `appeal_window_secs` to appeal or resubmit
+                # before the client can finalize — the escrow-flaw fix.
                 b.status = u8(S_REJECTED)
+                b.rejected_at = u256(_now_epoch())
 
         return verdict
 
@@ -591,13 +612,26 @@ Reply with ONLY a JSON object, no prose:
 
     @gl.public.write
     def finalize_rejection(self, bounty_id: str) -> None:
-        """Client claims escrow after a rejection the worker chose not to appeal."""
+        """Client claims escrow after a rejection the worker chose not to appeal.
+
+        The client may ONLY finalize once the worker's protected appeal window has
+        elapsed. Before that, the worker still holds their advertised right to
+        appeal (or resubmit), and the client cannot close the grant out from under
+        them. This fixes the escrow flaw where a client could finalize instantly
+        after a rejecting verdict and strip the worker of those rights.
+        """
         b = self._get(bounty_id)
         caller = _addr_str(gl.message.sender_address)
         if caller != b.client:
             raise gl.vm.UserError("only the client can finalize")
         if b.status != u8(S_REJECTED):
             raise gl.vm.UserError("bounty is not in a finalizable rejected state")
+        window_end = int(b.rejected_at) + int(self.appeal_window_secs)
+        if _now_epoch() < window_end:
+            raise gl.vm.UserError(
+                "appeal window still open: the worker can still appeal or resubmit, "
+                "so the grant cannot be finalized yet"
+            )
         b.status = u8(S_RESOLVED_FRAUD)
         self._credit(b.client, b.reward + b.worker_stake)
         self._bump_rep_fraud(b.worker)
@@ -646,6 +680,9 @@ Reply with ONLY a JSON object, no prose:
             "panel": panel,
             "reason": b.reason,
             "appealed": b.appealed,
+            "rejected_at": int(b.rejected_at),
+            "finalizable_at": (int(b.rejected_at) + int(self.appeal_window_secs)) if int(b.rejected_at) > 0 else 0,
+            "appeal_window_secs": int(self.appeal_window_secs),
         }
 
     @gl.public.view
@@ -687,5 +724,6 @@ Reply with ONLY a JSON object, no prose:
             "min_spec_match": int(self.min_spec_match),
             "min_authenticity": int(self.min_authenticity),
             "min_originality": int(self.min_originality),
+            "appeal_window_secs": int(self.appeal_window_secs),
             "total_bounties": int(self.next_id),
         })
