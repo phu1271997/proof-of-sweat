@@ -17,8 +17,18 @@ v0.4 "AI Jury 2.0" adds coverage for the upgraded jury:
     pytest tests/ -v
 """
 import json
+import datetime as _dt
 
 CONTRACT = "contracts/proof_of_sweat.py"
+
+# Appeal-window test helpers (the contract reads datetime.now(), which gltest
+# patches to the value set by direct_vm.warp()).
+_WINDOW = 300            # matches _DEFAULT_APPEAL_WINDOW_SECS in the contract
+_BASE_EPOCH = 1_760_000_000
+
+
+def _iso(epoch):
+    return _dt.datetime.fromtimestamp(epoch, _dt.timezone.utc).isoformat().replace("+00:00", "Z")
 
 REWARD = 1_000
 STAKE = 100
@@ -384,13 +394,63 @@ def test_finalize_rejection_pays_client(direct_vm, direct_deploy, direct_alice, 
     c, bid = _new_bounty(direct_vm, direct_deploy, direct_alice)
     _submit(c, direct_vm, bid, direct_bob)
     _mock_ok(direct_vm, AI_SLOP)
+    direct_vm.warp(_iso(_BASE_EPOCH))
     c.adjudicate(bid)
     client = _bounty(c, bid)["client"]
+    # client can only finalize AFTER the protected appeal window elapses
+    direct_vm.warp(_iso(_BASE_EPOCH + _WINDOW + 1))
     direct_vm.sender = direct_alice
     c.finalize_rejection(bid)
     b = _bounty(c, bid)
     assert b["status"] == 6  # RESOLVED_FRAUD
     assert c.get_credit(client) == str(REWARD + STAKE)
+
+
+# ── escrow-flaw fix: protected appeal window ─────────────────────────────────
+def test_client_cannot_finalize_during_appeal_window(direct_vm, direct_deploy, direct_alice, direct_bob):
+    """The reported escrow flaw: a client must NOT be able to close the grant
+    immediately after a rejection and strip the worker of their appeal rights."""
+    c, bid = _new_bounty(direct_vm, direct_deploy, direct_alice)
+    _submit(c, direct_vm, bid, direct_bob)
+    _mock_ok(direct_vm, AI_SLOP)
+    direct_vm.warp(_iso(_BASE_EPOCH))
+    c.adjudicate(bid)
+    assert _bounty(c, bid)["status"] == 4  # REJECTED
+    # still inside the window — finalize must revert
+    direct_vm.warp(_iso(_BASE_EPOCH + _WINDOW - 1))
+    direct_vm.sender = direct_alice
+    with direct_vm.expect_revert("appeal window still open"):
+        c.finalize_rejection(bid)
+    # and the worker can still exercise the appeal right the window protects
+    direct_vm.sender = direct_bob
+    direct_vm.value = STAKE
+    c.appeal(bid)
+    direct_vm.value = 0
+    assert _bounty(c, bid)["status"] == 5  # APPEALED
+
+
+def test_worker_can_still_resubmit_during_window(direct_vm, direct_deploy, direct_alice, direct_bob):
+    """The window also protects the worker's right to resubmit a fixed deliverable."""
+    c, bid = _new_bounty(direct_vm, direct_deploy, direct_alice)
+    _submit(c, direct_vm, bid, direct_bob)
+    _mock_ok(direct_vm, AI_SLOP)
+    direct_vm.warp(_iso(_BASE_EPOCH))
+    c.adjudicate(bid)
+    direct_vm.sender = direct_bob
+    c.submit_work(bid, "https://example.com/fixed-deliverable")
+    assert _bounty(c, bid)["status"] == 2  # back to SUBMITTED
+
+
+def test_finalizable_at_is_exposed(direct_vm, direct_deploy, direct_alice, direct_bob):
+    c, bid = _new_bounty(direct_vm, direct_deploy, direct_alice)
+    _submit(c, direct_vm, bid, direct_bob)
+    _mock_ok(direct_vm, AI_SLOP)
+    direct_vm.warp(_iso(_BASE_EPOCH))
+    c.adjudicate(bid)
+    b = _bounty(c, bid)
+    assert b["rejected_at"] == _BASE_EPOCH
+    assert b["finalizable_at"] == _BASE_EPOCH + _WINDOW
+    assert b["appeal_window_secs"] == _WINDOW
 
 
 def test_cancel_open_bounty_refunds(direct_vm, direct_deploy, direct_alice):
