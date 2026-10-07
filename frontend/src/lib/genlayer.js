@@ -1,9 +1,9 @@
 import { createClient } from 'genlayer-js';
 import { studioDevnet } from 'genlayer-js/chains';
 
-// v0.4.0 (AI Jury 2.0) on GenLayer Studio Next. Env var wins; the literal is a
+// v0.4.1 (AI Jury 2.0 + appeal-window fix) on GenLayer Studio Next. Env var wins; the literal is a
 // safe fallback so the app still points at the live contract if the build env is missing.
-const CONTRACT_FALLBACK = '0xC1d76d6FF8DFFE2429e4Fb4f4A8174647524F27D';
+const CONTRACT_FALLBACK = '0x9276b3d543297bE6fAa72c869a7C34431850ad68';
 export const CONTRACT = import.meta.env.VITE_CONTRACT_ADDRESS || CONTRACT_FALLBACK;
 
 export function contractConfigured() {

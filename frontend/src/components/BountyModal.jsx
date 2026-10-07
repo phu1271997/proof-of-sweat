@@ -240,9 +240,17 @@ export default function BountyModal({
             </Button>
           )}
           {b.status === 4 && cap.hasFinalize && isClient && (
-            <Button variant="ghost" busy={busy === 'finalize_rejection'} onClick={() => act('finalize_rejection', [String(b.id)], 0n, 'Rejection finalized. Escrow moved to your credit.')}>
-              Finalize & claim escrow
-            </Button>
+            appealWindowOpen(b) ? (
+              <Info>
+                Appeal window open until {fmtWhen(b.finalizable_at)}. The worker can still
+                appeal or resubmit, so the grant can’t be finalized yet. You’ll be able to
+                finalize and claim the escrow after the window closes.
+              </Info>
+            ) : (
+              <Button variant="ghost" busy={busy === 'finalize_rejection'} onClick={() => act('finalize_rejection', [String(b.id)], 0n, 'Rejection finalized. Escrow moved to your credit.')}>
+                Finalize & claim escrow
+              </Button>
+            )
           )}
           {b.status === 4 && !cap.hasFinalize && isClient && (
             BigInt(userCredit || 0) > 0n ? (
@@ -335,4 +343,21 @@ export default function BountyModal({
 
 function Info({ children, tone }) {
   return <div className={`info-line ${tone ? 'info-' + tone : ''}`}>{children}</div>;
+}
+
+// The client can only finalize a rejection once the worker's protected appeal
+// window has elapsed. finalizable_at is epoch seconds from the contract.
+function appealWindowOpen(b) {
+  const at = Number(b?.finalizable_at || 0);
+  return at > 0 && Date.now() / 1000 < at;
+}
+
+function fmtWhen(epochSecs) {
+  const t = Number(epochSecs || 0);
+  if (!t) return 'the appeal window closes';
+  try {
+    return new Date(t * 1000).toLocaleString();
+  } catch {
+    return 'the appeal window closes';
+  }
 }
