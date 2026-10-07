@@ -103,7 +103,7 @@ https://explorer-studio-dev.genlayer.com/address/0xC1d76d6FF8DFFE2429e4Fb4f4A817
 
 ## Website
 ```
-https://proofofsweat-app.vercel.app
+https://proofofsweat-app-omega.vercel.app
 ```
 
 ## GitHub

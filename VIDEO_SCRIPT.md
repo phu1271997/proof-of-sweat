@@ -6,7 +6,7 @@
 ---
 
 ### 1. The Hook & The Problem (0:00 – 0:18)
-**[Do]** Open the landing page (`https://proofofsweat-app.vercel.app`). Show the hero title: *"Get paid for real work. AI slop gets nothing."*  
+**[Do]** Open the landing page (`https://proofofsweat-app-omega.vercel.app`). Show the hero title: *"Get paid for real work. AI slop gets nothing."*  
 **[Say]**  
 "In the freelance and gig economy, hiring someone online is easy. But knowing if they did real work, or just copy-pasted from ChatGPT, is almost impossible.  
 This is **Proof of Sweat** — a decentralized bounty platform on GenLayer. Here, workers get paid only when an on-chain AI jury agrees the work is genuine."

@@ -140,7 +140,7 @@ Full walkthrough in [`scripts/deploy/DEPLOY.md`](scripts/deploy/DEPLOY.md). Shor
 | **Network** | GenLayer **Studio Next** (Chain ID `61997`, Consensus v0.6) |
 | **Contract address** | `0xC1d76d6FF8DFFE2429e4Fb4f4A8174647524F27D` (v0.4.0 — AI Jury 2.0) |
 | **Explorer** | https://explorer-studio-dev.genlayer.com/address/0xC1d76d6FF8DFFE2429e4Fb4f4A8174647524F27D |
-| **Live app** | https://proofofsweat-app.vercel.app |
+| **Live app** | https://proofofsweat-app-omega.vercel.app |
 | **Repo** | https://github.com/phu1271997/proof-of-sweat |
 | **Demo video** | `TO BE FILLED` |
 
