@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Badge, Meter, Empty, Spinner } from './ui.jsx';
-import { STATUS, VERDICT, formatGen, shortAddr } from '../lib/format.js';
+import { STATUS, VERDICT, CROSS, formatGen, shortAddr } from '../lib/format.js';
 
 // A case is "resolved" once the jury has settled it: approved & paid, rejected,
 // or fraud upheld after an appeal.
@@ -104,6 +104,12 @@ function CaseRow({ b, sym, onOpen }) {
           <Badge tone={st.tone}>{st.label}</Badge>
         </div>
         {b.reason && <p className="case-reason">{clip(b.reason, 240)}</p>}
+        {b.cross_check === 2 && CROSS[2] && (
+          <span className="case-cross tone-red">{CROSS[2].icon} verbatim web match found</span>
+        )}
+        {b.cross_check === 1 && CROSS[1] && (
+          <span className="case-cross tone-lime">{CROSS[1].icon} web cross-check clean</span>
+        )}
         <div className="case-pay">
           {paid
             ? <span className="pay-out">{payout} {sym} paid to {shortAddr(b.worker)}</span>
@@ -115,6 +121,12 @@ function CaseRow({ b, sym, onOpen }) {
         <div className="case-meters">
           <Meter label="Confidence" value={Number(b.confidence) || 0} tone={v.tone} />
           <Meter label="Spec match" value={Number(b.spec_match) || 0} tone="cyan" />
+          {b.authenticity !== undefined && (
+            <Meter label="Authenticity" value={Number(b.authenticity) || 0} tone="violet" />
+          )}
+          {b.originality !== undefined && (
+            <Meter label="Originality" value={Number(b.originality) || 0} tone="blue" />
+          )}
         </div>
       </div>
     </button>

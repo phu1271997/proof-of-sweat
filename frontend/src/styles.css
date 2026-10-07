@@ -237,6 +237,32 @@ input:focus, textarea:focus { outline: none; border-color: var(--cyan); box-shad
 .meter-lime { background: var(--lime); }
 .meter-red { background: var(--red); }
 .meter-amber { background: var(--amber); }
+.meter-violet { background: var(--violet); }
+.meter-blue { background: var(--blue); }
+
+/* v0.4 — live web cross-check pill */
+.crosscheck { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 14px;
+  padding: 7px 12px; border-radius: 999px; font-size: 12px; font-weight: 600;
+  border: 1px solid var(--border-strong); background: rgba(255,255,255,0.03); cursor: help; }
+.crosscheck-ico { font-size: 13px; }
+.crosscheck.tone-lime { border-color: rgba(195,243,77,0.4); color: var(--lime); background: rgba(195,243,77,0.06); }
+.crosscheck.tone-red { border-color: rgba(255,95,110,0.4); color: var(--red); background: rgba(255,95,110,0.06); }
+.crosscheck.tone-muted { color: var(--muted); }
+
+/* v0.4 — three-lens jury panel breakdown */
+.jury-panel { margin: 4px 0 14px; }
+.jury-panel-head { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin-bottom: 8px; }
+.jury-lenses { display: grid; gap: 8px; }
+.lens { padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-2); }
+.lens-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 3px; }
+.lens-name { font-size: 12px; font-weight: 600; color: var(--text); }
+.lens-score { font-size: 12px; color: var(--cyan); }
+.lens-finding { margin: 0; font-size: 13px; color: #cfd6e6; line-height: 1.45; }
+
+/* v0.4 — explorer row cross-check tag */
+.case-cross { display: inline-block; margin: 4px 0; font-size: 11px; font-weight: 600; font-family: var(--font-mono); }
+.case-cross.tone-red { color: var(--red); }
+.case-cross.tone-lime { color: var(--lime); }
 
 .rep-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 14px; background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 18px; }
 .rep-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }

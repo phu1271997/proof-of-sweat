@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, Button, Badge, Meter, Field } from './ui.jsx';
-import { STATUS, VERDICT, formatGen, shortAddr, sameAddr } from '../lib/format.js';
+import { STATUS, VERDICT, CROSS, formatGen, shortAddr, sameAddr } from '../lib/format.js';
 import { friendly } from './CreateBounty.jsx';
 import { useChain } from '../lib/chainContext.jsx';
 
@@ -156,7 +156,38 @@ export default function BountyModal({
             <div className="verdict-meters">
               <Meter label="Confidence" value={b.confidence} tone={vd.tone} />
               <Meter label="Spec match" value={b.spec_match} tone="cyan" />
+              {b.authenticity !== undefined && (
+                <Meter label="Authenticity" value={b.authenticity} tone="violet" />
+              )}
+              {b.originality !== undefined && (
+                <Meter label="Originality" value={b.originality} tone="blue" />
+              )}
             </div>
+
+            {b.cross_check !== undefined && b.cross_check !== null && CROSS[b.cross_check] && (
+              <div className={`crosscheck tone-${CROSS[b.cross_check].tone}`} title={CROSS[b.cross_check].hint}>
+                <span className="crosscheck-ico">{CROSS[b.cross_check].icon}</span>
+                <span className="crosscheck-label">Live web cross-check · {CROSS[b.cross_check].label}</span>
+              </div>
+            )}
+
+            {Array.isArray(b.panel) && b.panel.length > 0 && (
+              <div className="jury-panel">
+                <div className="jury-panel-head">Panel breakdown · three auditor lenses</div>
+                <div className="jury-lenses">
+                  {b.panel.map((p, i) => (
+                    <div key={i} className="lens">
+                      <div className="lens-top">
+                        <span className="lens-name">{p.lens}</span>
+                        {p.score !== undefined && <span className="lens-score mono">{p.score}</span>}
+                      </div>
+                      <p className="lens-finding">{p.finding}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {b.reason && <blockquote className="verdict-reason">“{b.reason}”</blockquote>}
             {b.appealed && <div className="appeal-note">This verdict was reached on appeal.</div>}
           </section>

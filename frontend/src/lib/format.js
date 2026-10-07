@@ -61,4 +61,14 @@ export const VERDICT = {
   UNCLEAR: { label: 'Unclear', tone: 'amber' },
 };
 
+// v0.4 live web cross-check outcome (matches contract X_UNKNOWN/CLEAN/HIT).
+export const CROSS = {
+  0: { label: 'No external corroboration', tone: 'muted', icon: '○',
+       hint: 'The live web search returned nothing to compare against.' },
+  1: { label: 'Clean · no verbatim match online', tone: 'lime', icon: '✓',
+       hint: 'A distinctive phrase from the work was searched live on the open web and found nowhere else.' },
+  2: { label: 'Verbatim match found online', tone: 'red', icon: '⚠',
+       hint: 'A distinctive phrase from the work appears verbatim elsewhere on the web — a plagiarism signal.' },
+};
+
 export const EXPLORER = 'https://explorer-studio-dev.genlayer.com';
