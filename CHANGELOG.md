@@ -1,5 +1,48 @@
 # Changelog
 
+## [1.2.0] — AI Jury 2.0: multi-perspective panel + live web cross-check (Milestone — Phase 1)
+
+The heart of the product — the adjudication — was rebuilt. This is a major-feature /
+AI-enhancement milestone, not a tweak: the single-prompt judge became a three-lens
+panel backed by a second, independent on-chain web read.
+
+### Contract (`contracts/proof_of_sweat_studio_next.py`, `contracts/proof_of_sweat.py`) → v0.4.0
+- **Multi-perspective jury.** One structured reasoning pass now runs THREE named
+  auditor lenses — **Forensic Authorship**, **Originality/Plagiarism**, and
+  **Spec Compliance** — and records each lens's score + one-line finding on-chain
+  (`panel`), instead of a single averaged number.
+- **Live web cross-check (a second nondet web read).** Before judging, `adjudicate()`
+  extracts a distinctive phrase from the deliverable and runs a live quoted web search
+  (`gl.nondet.web.render`). A verbatim match elsewhere is concrete plagiarism evidence;
+  it **floors originality and blocks payment** regardless of model confidence. Outcome
+  stored as `cross_check` (unknown / clean / hit). Degrades gracefully if the search is blocked.
+- **Four-gate payment.** Payment now requires GENUINE **and** confidence ≥60 **and**
+  spec-match ≥50 **and** authenticity ≥55 **and** originality ≥55. A polished-but-
+  machine-written deliverable the model still calls "GENUINE" no longer gets paid.
+- **Hardened consensus.** `validator_fn` now agrees on the verdict **and every pay
+  gate's directional pass/fail** (verdict, confidence, spec, authenticity, originality).
+  Honest validators with different wording still agree; any real disagreement on meaning
+  or on the pay/no-pay decision blocks consensus.
+- `get_config` exposes the new `min_authenticity` / `min_originality` gates; `get_bounty`
+  / `get_all_bounties` return `authenticity`, `originality`, `cross_check`, and `panel`.
+- Stdlib-free URL encoding (no `urllib`) so the genvm sandbox deploys clean.
+
+### Tests (`tests/`)
+- Grew from 22 → **28 passing** direct-mode cases. New: panel recorded on-chain,
+  live cross-check HIT blocks payment, authenticity gate blocks slick-but-fake work,
+  consensus disagrees when the authenticity gate differs, and the new config gates.
+
+### Frontend (`frontend/`)
+- Verdict panel now shows **Authenticity** and **Originality** meters alongside
+  Confidence and Spec match, a **live web cross-check** pill (clean / verbatim-match /
+  no-corroboration), and the **three-lens panel breakdown** with per-lens findings.
+- Explorer rows surface the extra meters and a cross-check tag.
+
+### Redeployed to GenLayer Studio Next
+- New contract (schema changed): address recorded in `README.md` deployment table and `SUBMISSION.md`.
+- Reseeded end-to-end: a GENUINE first-person deliverable (paid, cross-check clean) and a
+  copied Wikipedia article (PLAGIARIZED, rejected) — both decided by real validator consensus.
+
 ## [1.1.0] — GenLayer Studio Next Migration (Consensus v0.6 & Fee Model)
 
 ### Contract (`contracts/proof_of_sweat_studio_next.py`, `contracts/proof_of_sweat.py`)

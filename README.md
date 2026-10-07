@@ -45,6 +45,26 @@ CLIENT                         WORKER                        AI JURY (validators
 The verdict is one of `GENUINE`, `AI_GENERATED`, `PLAGIARIZED`, `UNCLEAR`, each with a
 confidence score, a spec-match score, and a written rationale — all produced on-chain.
 
+## AI Jury 2.0 — multi-perspective panel + live web cross-check (v0.4.0)
+
+The adjudication was rebuilt from a single prompt into a **three-lens panel backed by a
+second, independent on-chain web read**:
+
+- **Three auditor lenses in one structured pass** — *Forensic Authorship*,
+  *Originality/Plagiarism*, and *Spec Compliance*. Each returns its own 0-100 score and a
+  one-line finding, all stored on-chain and shown in the UI, so you see *why* a verdict
+  landed instead of one averaged number.
+- **Live web cross-check** — before judging, the contract extracts a distinctive phrase
+  from the deliverable and runs a **live quoted web search** with a second
+  `gl.nondet.web.render`. A verbatim match elsewhere is concrete evidence of copying; it
+  **floors originality and blocks payment** no matter how confident the model sounded.
+- **Four payment gates, not one** — payment requires `GENUINE` **and** confidence ≥ 60
+  **and** spec-match ≥ 50 **and** authenticity ≥ 55 **and** originality ≥ 55. Polished-but-
+  machine-written work the model still labels "GENUINE" no longer slips through.
+- **Consensus over every gate** — validators agree on the verdict **and** each gate's
+  pass/fail. Different wording still agrees; any real disagreement on meaning or on the
+  pay decision blocks consensus.
+
 ## Architecture
 
 - **`contracts/proof_of_sweat.py`** — the Intelligent Contract (Python).
@@ -65,10 +85,11 @@ confidence score, a spec-match score, and a written rationale — all produced o
 - **`tests/`** — `genlayer-test` direct-mode suite (in-memory, no network).
 
 ```
-contracts/       proof_of_sweat.py  ·  storage_test.py
+contracts/       proof_of_sweat.py  ·  proof_of_sweat_studio_next.py  ·  storage_test.py
 frontend/        React + genlayer-js dApp
-tests/           direct-mode gltest suite (22 cases, all passing)
-scripts/deploy/  DEPLOY.md — studionet deploy walkthrough
+tests/           direct-mode gltest suite (28 cases, all passing)
+docs/samples/    example deliverables used by the jury demo
+scripts/deploy/  DEPLOY.md — studionet deploy walkthrough  ·  seed_phase1_jury2.js
 ```
 
 ## Run the tests
@@ -87,6 +108,12 @@ appeal flow, and — most importantly — the **consensus guarantee**:
 
 - `test_validators_disagree_on_different_verdict` — different verdicts ⇒ **no consensus**.
 - `test_validator_rejects_reason_only_difference` — same verdict, different wording ⇒ still agree.
+- `test_validators_disagree_when_authenticity_gate_differs` — same verdict but a different
+  pay decision on the new authenticity gate ⇒ **no consensus**.
+- `test_web_crosscheck_hit_blocks_payment` — a verbatim web match floors originality and
+  blocks payment even when the model reported high originality.
+- `test_low_authenticity_genuine_does_not_pay` — polished work the forensic lens flags as
+  machine-written is not paid.
 
 ## Deploy to studionet + run the dApp
 
