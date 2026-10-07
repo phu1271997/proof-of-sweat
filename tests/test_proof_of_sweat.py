@@ -1,10 +1,17 @@
 """Direct-mode tests for Proof of Sweat.
 
 These run the contract in-memory (no network / Docker) via genlayer-test's
-direct fixtures, mocking the web read and the LLM jury. They cover the happy
-path, every edge case with a UserError, and — most importantly — that the
-validator DISAGREES when two validators reach different verdicts (the core
-GenLayer consensus guarantee this project is built on).
+direct fixtures, mocking the web reads and the LLM jury. They cover the happy
+path, every edge case with a UserError, the appeal flow, and — most importantly —
+that the validator DISAGREES when two validators reach different verdicts OR a
+different pay/no-pay decision (the core GenLayer consensus guarantee this project
+is built on).
+
+v0.4 "AI Jury 2.0" adds coverage for the upgraded jury:
+  • the multi-perspective panel is recorded on-chain,
+  • the live web cross-check blocks payment on a verbatim plagiarism hit,
+  • the new authenticity gate blocks polished-but-machine-written work, and
+  • consensus still holds across every pay gate.
 
     pip install "genlayer-test[sim]"
     pytest tests/ -v
@@ -17,15 +24,51 @@ REWARD = 1_000
 STAKE = 100
 URL = "https://example.com/deliverable"
 
-GENUINE = json.dumps({"verdict": "GENUINE", "confidence": 90, "spec_match": 85,
-                      "reason": "Original, on-spec work with concrete, verifiable detail."})
-LOW_CONF_GENUINE = json.dumps({"verdict": "GENUINE", "confidence": 40, "spec_match": 80,
-                               "reason": "Plausibly genuine but hard to be sure."})
-AI_SLOP = json.dumps({"verdict": "AI_GENERATED", "confidence": 88, "spec_match": 20,
-                      "reason": "Generic phrasing and hollow structure typical of AI generation."})
+# Search-engine result bodies for the live cross-check (second web read).
+CLEAN_SEARCH = "No results found. Your search did not match any documents."
+
+# v0.4 verdicts now carry authenticity + originality sub-scores and a panel.
+GENUINE = json.dumps({
+    "verdict": "GENUINE", "confidence": 90, "spec_match": 85,
+    "authenticity": 88, "originality": 90,
+    "panel": [
+        {"lens": "Forensic Authorship", "score": 88, "finding": "Specific lived detail; clearly human."},
+        {"lens": "Originality", "score": 90, "finding": "No web match; original wording."},
+        {"lens": "Spec Compliance", "score": 85, "finding": "Covers what was asked."},
+    ],
+    "reason": "Original, on-spec work with concrete, verifiable detail.",
+})
+LOW_CONF_GENUINE = json.dumps({
+    "verdict": "GENUINE", "confidence": 40, "spec_match": 80,
+    "authenticity": 80, "originality": 80,
+    "reason": "Plausibly genuine but hard to be sure.",
+})
+SLICK_AI_AS_GENUINE = json.dumps({
+    # A model that calls it GENUINE but the forensic lens still scores low:
+    # the authenticity gate must stop payment.
+    "verdict": "GENUINE", "confidence": 85, "spec_match": 85,
+    "authenticity": 30, "originality": 80,
+    "reason": "Reads on-spec but forensic signal of machine authorship is high.",
+})
+COPIED_AS_GENUINE = json.dumps({
+    # A model that calls it GENUINE with high originality, but the deterministic
+    # web cross-check finds a verbatim copy — originality is floored, payment blocked.
+    "verdict": "GENUINE", "confidence": 85, "spec_match": 85,
+    "authenticity": 85, "originality": 85,
+    "reason": "Looks original to the model, but a verbatim copy exists online.",
+})
+AI_SLOP = json.dumps({
+    "verdict": "AI_GENERATED", "confidence": 88, "spec_match": 20,
+    "authenticity": 15, "originality": 60,
+    "reason": "Generic phrasing and hollow structure typical of AI generation.",
+})
 
 
-def _mock_ok(vm, llm_response=GENUINE, body="Real, specific deliverable content."):
+def _mock_ok(vm, llm_response=GENUINE, body="Real, specific deliverable content.",
+             search_body=CLEAN_SEARCH):
+    # The cross-check hits a search engine; register it FIRST so the catch-all
+    # deliverable mock below does not shadow it (first match wins).
+    vm.mock_web(r".*duckduckgo.*", {"status": 200, "body": search_body})
     vm.mock_web(r".*", {"status": 200, "body": body})
     vm.mock_llm(r".*", llm_response)
 
@@ -161,6 +204,49 @@ def test_low_confidence_genuine_does_not_pay(direct_vm, direct_deploy, direct_al
     assert b["status"] == 4  # REJECTED — confidence below threshold, not auto-approved
 
 
+def test_low_authenticity_genuine_does_not_pay(direct_vm, direct_deploy, direct_alice, direct_bob):
+    """v0.4 gate: a deliverable the model labels GENUINE but the FORENSIC lens
+    scores low on authenticity must NOT be paid — polish is not proof of human work."""
+    c, bid = _new_bounty(direct_vm, direct_deploy, direct_alice)
+    _submit(c, direct_vm, bid, direct_bob)
+    _mock_ok(direct_vm, SLICK_AI_AS_GENUINE)
+    c.adjudicate(bid)
+    b = _bounty(c, bid)
+    assert b["verdict"] == "GENUINE"      # model said genuine…
+    assert b["authenticity"] == 30         # …but forensic score is low
+    assert b["status"] == 4                # …so payment is blocked (REJECTED)
+
+
+def test_web_crosscheck_hit_blocks_payment(direct_vm, direct_deploy, direct_alice, direct_bob):
+    """v0.4 live cross-check: if a distinctive phrase from the deliverable is
+    found VERBATIM on the open web, originality is floored and payment is blocked
+    even when the model itself reported high originality."""
+    c, bid = _new_bounty(direct_vm, direct_deploy, direct_alice)
+    _submit(c, direct_vm, bid, direct_bob)
+    body = ("The quarterly migration runbook moves every tenant shard to the new "
+            "region without downtime using a dual-write cutover.")
+    # The search engine returns the SAME distinctive sentence → verbatim hit.
+    _mock_ok(direct_vm, COPIED_AS_GENUINE, body=body, search_body=body)
+    c.adjudicate(bid)
+    b = _bounty(c, bid)
+    assert b["cross_check"] == 2           # X_HIT
+    assert b["originality"] <= 20          # floored by the cross-check
+    assert b["status"] == 4                # payment blocked
+
+
+def test_panel_is_recorded(direct_vm, direct_deploy, direct_alice, direct_bob):
+    """The per-lens auditor panel is stored on-chain and returned to the UI."""
+    c, bid = _new_bounty(direct_vm, direct_deploy, direct_alice)
+    _submit(c, direct_vm, bid, direct_bob)
+    _mock_ok(direct_vm, GENUINE)
+    c.adjudicate(bid)
+    b = _bounty(c, bid)
+    assert isinstance(b["panel"], list) and len(b["panel"]) == 3
+    assert b["panel"][0]["lens"] == "Forensic Authorship"
+    assert b["authenticity"] == 88 and b["originality"] == 90
+    assert b["cross_check"] == 1           # X_CLEAN (no web match)
+
+
 def test_dead_link_is_unclear(direct_vm, direct_deploy, direct_alice, direct_bob):
     c, bid = _new_bounty(direct_vm, direct_deploy, direct_alice)
     _submit(c, direct_vm, bid, direct_bob)
@@ -205,6 +291,7 @@ def test_validator_rejects_reason_only_difference(direct_vm, direct_deploy, dire
     c.adjudicate(bid)
     direct_vm.clear_mocks()
     other_wording = json.dumps({"verdict": "GENUINE", "confidence": 77, "spec_match": 70,
+                                "authenticity": 80, "originality": 80,
                                 "reason": "Completely different sentence, same conclusion."})
     _mock_ok(direct_vm, other_wording)
     assert direct_vm.run_validator() is True
@@ -214,14 +301,25 @@ def test_validators_disagree_when_payment_decision_differs(direct_vm, direct_dep
     """Leader sees GENUINE above threshold (pays).
     Validator sees GENUINE below confidence threshold (does NOT pay).
     Even though both rule GENUINE, they MUST DISAGREE because their payment
-    decisions differ (confidence threshold not met by validator).
-    Fixes the exact feedback requested by the hackathon judge."""
+    decisions differ (confidence threshold not met by validator)."""
     c, bid = _new_bounty(direct_vm, direct_deploy, direct_alice)
     _submit(c, direct_vm, bid, direct_bob)
     _mock_ok(direct_vm, GENUINE)  # conf=90, spec=85 -> pays
     c.adjudicate(bid)
     direct_vm.clear_mocks()
     _mock_ok(direct_vm, LOW_CONF_GENUINE)  # conf=40 (< 60) -> does not pay
+    assert direct_vm.run_validator() is False
+
+
+def test_validators_disagree_when_authenticity_gate_differs(direct_vm, direct_deploy, direct_alice, direct_bob):
+    """v0.4: both rule GENUINE, but one clears the authenticity gate and the
+    other does not → no consensus. Proves the new gate is part of the agreement."""
+    c, bid = _new_bounty(direct_vm, direct_deploy, direct_alice)
+    _submit(c, direct_vm, bid, direct_bob)
+    _mock_ok(direct_vm, GENUINE)  # authenticity=88 -> pays
+    c.adjudicate(bid)
+    direct_vm.clear_mocks()
+    _mock_ok(direct_vm, SLICK_AI_AS_GENUINE)  # authenticity=30 (< 55) -> does not pay
     assert direct_vm.run_validator() is False
 
 
@@ -312,7 +410,7 @@ def test_cannot_cancel_claimed(direct_vm, direct_deploy, direct_alice, direct_bo
         c.cancel_bounty(bid)
 
 
-# ── listing ──────────────────────────────────────────────────────────────────
+# ── listing + config ─────────────────────────────────────────────────────────
 def test_get_all_bounties(direct_vm, direct_deploy, direct_alice):
     c, _ = _new_bounty(direct_vm, direct_deploy, direct_alice)
     direct_vm.sender = direct_alice
@@ -321,3 +419,11 @@ def test_get_all_bounties(direct_vm, direct_deploy, direct_alice):
     direct_vm.value = 0
     allb = json.loads(c.get_all_bounties())
     assert len(allb) == 2
+
+
+def test_config_exposes_new_gates(direct_vm, direct_deploy, direct_alice):
+    c, _ = _new_bounty(direct_vm, direct_deploy, direct_alice)
+    cfg = json.loads(c.get_config())
+    assert cfg["min_authenticity"] == 55
+    assert cfg["min_originality"] == 55
+    assert cfg["confidence_threshold"] == 60
