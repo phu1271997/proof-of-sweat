@@ -1,5 +1,44 @@
 # Changelog
 
+## [1.3.0] — The AI Courtroom: adversarial deliberation (Milestone — Phase 2)
+
+The heart of the product — the adjudication — was rebuilt again, this time from a single
+(if multi-lens) judgment pass into an **adversarial trial argued on-chain**. This is a
+major AI-enhancement milestone: the contract now reasons over *both sides* of every case
+before ruling, and the worker gets a real voice on appeal.
+
+### Contract (`contracts/proof_of_sweat_studio_next.py`, `contracts/proof_of_sweat.py`) → v0.5.0
+- **Two-stage nondet reasoning.** `adjudicate()` now runs two `gl.nondet.exec_prompt` passes
+  inside the consensus block: **Stage A** writes a **Prosecution** brief (strongest honest case
+  for fraud) and a **Defense** brief (strongest honest case for genuine) from the same evidence;
+  **Stage B** is the **presiding judge**, which weighs both briefs against the evidence and
+  returns the verdict + three lens scores + pay decision. Four nondet ops per verdict now:
+  read deliverable, live web cross-check, adversarial briefs, ruling.
+- **Worker rebuttal on appeal.** `appeal(bounty_id, rebuttal)` admits an optional written plea
+  into evidence on-chain; the Defense brief must engage with it and the judge must weigh it. The
+  appeal is a real argued case, not a silent re-roll. Stored as `rebuttal`.
+- **Transparency.** The `prosecution` and `defense` briefs are stored on-chain and returned by
+  `get_bounty` / `get_all_bounties`, so anyone can read *how* a verdict was argued.
+- **Consensus unchanged and still over meaning.** `validator_fn` still compares the verdict and
+  every pay gate (not the free-text briefs or reason), so honest validators with different
+  wording agree while any real disagreement on the pay/no-pay decision blocks consensus.
+
+### Tests (`tests/`)
+- 31 → **34 passing**. New: both briefs recorded on-chain, a worker rebuttal is admitted on
+  appeal and can overturn, and adjudication degrades gracefully if the briefs pass yields nothing.
+
+### Frontend (`frontend/`)
+- New **AI Courtroom** panel in the bounty detail: the Prosecution and Defense briefs shown
+  side by side, and the worker's rebuttal (when filed on appeal). The appeal action gained a
+  rebuttal textarea so the worker argues their case into the on-chain record.
+
+### Redeployed to GenLayer Studio Next
+- New contract (schema gained `prosecution` / `defense` / `rebuttal`):
+  `0x8EFD51C83e606B1adCd95E14b73DD17967Ef20F0`. Reseeded end-to-end by real validator consensus:
+  a GENUINE case where the Defense brief prevailed (paid), a PLAGIARIZED Wikipedia copy where
+  the Prosecution brief cited the copied text (rejected), and an appeal with a written rebuttal
+  on that case where fraud was upheld because a verbatim source match is concrete evidence.
+
 ## [1.2.1] — Escrow fix: enforced appeal window (judge feedback)
 
 Fixes a reported escrow flaw: *"the sponsor can close a grant after an initial partial

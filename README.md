@@ -45,6 +45,33 @@ CLIENT                         WORKER                        AI JURY (validators
 The verdict is one of `GENUINE`, `AI_GENERATED`, `PLAGIARIZED`, `UNCLEAR`, each with a
 confidence score, a spec-match score, and a written rationale — all produced on-chain.
 
+## The AI Courtroom — adversarial deliberation (v0.5.0)
+
+A single judge, even a three-lens one, anchors on its first impression. v0.5 turns one
+reasoning pass into an **adversarial trial that runs entirely on-chain** inside the
+non-deterministic block:
+
+- **Stage A — adversarial briefs.** One structured pass writes *both* sides of the case
+  from the same evidence: a **Prosecution** brief arguing the work is fraud (AI-generated,
+  plagiarized, or off-spec) and a **Defense** brief arguing it is genuine — each forced to
+  cite concrete evidence from the deliverable and the live web cross-check.
+- **Stage B — the ruling.** A second pass acts as the **presiding judge**: it weighs both
+  briefs against the evidence and returns the final verdict, the three lens scores, and the
+  pay decision. Seeing the strongest case for *both* outcomes before ruling is what pushes
+  borderline calls off the fence instead of rubber-stamping a first read.
+- **Worker agency on appeal.** A rejected worker can attach a written **rebuttal** when they
+  appeal. It is admitted into evidence on-chain, the Defense brief must engage with it, and
+  the judge must weigh it. The appeal is no longer a silent dice re-roll — the worker argues
+  their side into the permanent record.
+- **Full transparency.** Both briefs and the rebuttal are stored on-chain and shown in the
+  UI, so anyone can read exactly *how* a verdict was argued, not just what it was.
+
+Across one adjudication the contract now performs **four non-deterministic operations on
+chain**: it reads the deliverable, runs a live quoted web search (the plagiarism
+cross-check), argues the adversarial briefs, and rules. Consensus is **unchanged** and still
+checks *meaning* — validators agree on the verdict and every pay gate, never on the free-text
+briefs. This is advanced on-chain AI reasoning no ordinary smart contract can approach.
+
 ## AI Jury 2.0 — multi-perspective panel + live web cross-check (v0.4.0)
 
 The adjudication was rebuilt from a single prompt into a **three-lens panel backed by a
@@ -80,8 +107,9 @@ live "Finalize" button while the window is open. Timestamps use a consensus-safe
 
 - **`contracts/proof_of_sweat.py`** — the Intelligent Contract (Python).
   - Non-deterministic judgment runs inside `gl.vm.run_nondet(leader_fn, validator_fn)`.
-  - `leader_fn` reads the deliverable with `gl.nondet.web.render(url, mode="text")` and judges it
-    with `gl.nondet.exec_prompt(prompt, response_format="json")`.
+  - `leader_fn` reads the deliverable with `gl.nondet.web.render(url, mode="text")`, runs a live
+    web cross-check (a second `web.render`), then argues the case with **two** `gl.nondet.exec_prompt`
+    passes — the adversarial briefs and the judge's ruling.
   - **`validator_fn` compares the `verdict` (the meaning), not the JSON shape.** Two honest
     validators that phrase their reasoning differently still agree; two validators that reach
     **different verdicts do not** — this is the line between a real GenLayer contract and a fake one.
@@ -98,7 +126,7 @@ live "Finalize" button while the window is open. Timestamps use a consensus-safe
 ```
 contracts/       proof_of_sweat.py  ·  proof_of_sweat_studio_next.py  ·  storage_test.py
 frontend/        React + genlayer-js dApp
-tests/           direct-mode gltest suite (31 cases, all passing)
+tests/           direct-mode gltest suite (34 cases, all passing)
 docs/samples/    example deliverables used by the jury demo
 scripts/deploy/  DEPLOY.md — studionet deploy walkthrough  ·  seed_phase1_jury2.js
 ```
@@ -128,6 +156,12 @@ appeal flow, and — most importantly — the **consensus guarantee**:
 - `test_client_cannot_finalize_during_appeal_window` — the escrow-flaw fix: a client cannot
   finalize a rejection while the worker's appeal window is still open (and the worker can still
   appeal); `test_finalize_rejection_pays_client` confirms the client can finalize once it elapses.
+- `test_courtroom_briefs_recorded` — both adversarial briefs (Prosecution + Defense) from the
+  two-pass on-chain trial are stored and returned to the UI.
+- `test_appeal_rebuttal_admitted_into_evidence` — a worker's written rebuttal is recorded
+  on-chain on appeal and the stricter re-trial can overturn the ruling.
+- `test_courtroom_degrades_without_briefs` — adjudication still produces a verdict if the
+  briefs pass yields nothing (backward-compatible degrade).
 
 ## Deploy to studionet + run the dApp
 
@@ -152,15 +186,17 @@ Full walkthrough in [`scripts/deploy/DEPLOY.md`](scripts/deploy/DEPLOY.md). Shor
 | | |
 |---|---|
 | **Network** | GenLayer **Studio Next** (Chain ID `61997`, Consensus v0.6) |
-| **Contract address** | `0x9276b3d543297bE6fAa72c869a7C34431850ad68` (v0.4.1 — AI Jury 2.0 + appeal-window fix) |
-| **Explorer** | https://explorer-studio-dev.genlayer.com/address/0x9276b3d543297bE6fAa72c869a7C34431850ad68 |
+| **Contract address** | `0x8EFD51C83e606B1adCd95E14b73DD17967Ef20F0` (v0.5.0 — AI Courtroom, adversarial deliberation) |
+| **Explorer** | https://explorer-studio-dev.genlayer.com/address/0x8EFD51C83e606B1adCd95E14b73DD17967Ef20F0 |
 | **Live app** | https://proofofsweat-app-omega.vercel.app |
 | **Repo** | https://github.com/phu1271997/proof-of-sweat |
 | **Demo video** | `TO BE FILLED` |
 
 > Previous versions: `0x38e53C1BF5128f05D6EAd05b56bdfF4c8305cd68` (v0.3, single-prompt jury),
-> `0xC1d76d6FF8DFFE2429e4Fb4f4A8174647524F27D` (v0.4.0, AI Jury 2.0). v0.4.1 is a fresh deploy
-> because the storage schema gained the appeal-window fields (`rejected_at`, `appeal_window_secs`).
+> `0xC1d76d6FF8DFFE2429e4Fb4f4A8174647524F27D` (v0.4.0, AI Jury 2.0),
+> `0x9276b3d543297bE6fAa72c869a7C34431850ad68` (v0.4.1, + protected appeal window). v0.5.0 is a
+> fresh deploy because the storage schema gained the courtroom fields (`prosecution`, `defense`,
+> `rebuttal`).
 
 **Multichain: Arc settlement layer.** GenLayer judges; Arc settles in USDC. The `ArcSettlement`
 contract is deployed on Arc testnet and the app has a chain switcher (GenLayer / Arc).
@@ -172,12 +208,15 @@ contract is deployed on Arc testnet and the app has a chain switcher (GenLayer /
 | **Explorer** | https://testnet.arcscan.app/address/0xd898EF839DE88dE38113f0560F8fEBEff73D09c8 |
 | **Source + tests** | [`arc/`](arc/) (Foundry, 7 passing tests) |
 
-Verified end-to-end on Studio Next with the v0.4.1 contract: a **GENUINE** first-person
-deliverable scored high authenticity / originality with a clean web cross-check and the worker
-was **paid**; a **PLAGIARIZED** copy of a public Wikipedia article scored originality 0 across
-the panel and was **rejected**, entering the protected appeal window (the client cannot
-finalize until it elapses). Both verdicts were reached by real validator consensus on the live
-contract above (see the Explorer tab in the app).
+Verified end-to-end on Studio Next with the v0.5.0 contract (all by real validator consensus —
+see the Explorer tab in the app): a **GENUINE** first-person deliverable where the on-chain
+**Defense** brief prevailed (authenticity 91 / originality 93, clean web cross-check) and the
+worker was **paid**; a **PLAGIARIZED** copy of a public Wikipedia article where the
+**Prosecution** brief cited the copied text, originality collapsed to 2, and it was
+**rejected** into the protected appeal window; and an **appeal with a written rebuttal** on
+that case — the worker's plea was admitted into the on-chain record, the courtroom re-argued
+both sides, and fraud was **upheld** because a verbatim source match is concrete evidence a
+rebuttal can't argue away.
 
 ## One-line pitch
 
