@@ -2,7 +2,7 @@ import { defineChain } from 'viem';
 
 // Fallbacks keep the app pointed at the live contracts if a build env var is missing.
 export const GEN_CONTRACT =
-  import.meta.env.VITE_CONTRACT_ADDRESS || '0x9276b3d543297bE6fAa72c869a7C34431850ad68';
+  import.meta.env.VITE_CONTRACT_ADDRESS || '0x8EFD51C83e606B1adCd95E14b73DD17967Ef20F0';
 export const ARC_CONTRACT =
   import.meta.env.VITE_ARC_CONTRACT_ADDRESS || '0xd898EF839DE88dE38113f0560F8fEBEff73D09c8';
 
