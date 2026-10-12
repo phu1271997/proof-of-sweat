@@ -18,6 +18,7 @@ export default function BountyModal({
   const cap = adapter.cap;
   const sym = adapter.symbol;
   const [url, setUrl] = useState('');
+  const [rebuttal, setRebuttal] = useState('');
   const [busy, setBusy] = useState('');
   const [rep, setRep] = useState(null);
   const [userCredit, setUserCredit] = useState(credit || '0');
@@ -47,6 +48,7 @@ export default function BountyModal({
 
   useEffect(() => {
     setUrl('');
+    setRebuttal('');
     if (cap.hasReputation && b?.worker) adapter.fetchReputation(b.worker).then(setRep).catch(() => setRep(null));
     else setRep(null);
   }, [b?.id, b?.worker, b?.status, adapter, cap.hasReputation]);
@@ -188,6 +190,28 @@ export default function BountyModal({
               </div>
             )}
 
+            {(b.prosecution || b.defense) && (
+              <div className="courtroom">
+                <div className="courtroom-head">⚖️ The AI courtroom · adversarial briefs argued on-chain</div>
+                <div className="briefs">
+                  <div className="brief brief-pros">
+                    <span className="brief-tag">Prosecution</span>
+                    <p>{b.prosecution || 'No honest case for fraud could be argued.'}</p>
+                  </div>
+                  <div className="brief brief-def">
+                    <span className="brief-tag">Defense</span>
+                    <p>{b.defense || 'No defense brief was filed.'}</p>
+                  </div>
+                </div>
+                {b.rebuttal && (
+                  <div className="rebuttal">
+                    <span className="brief-tag">Worker’s rebuttal · admitted on appeal</span>
+                    <p>“{b.rebuttal}”</p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {b.reason && <blockquote className="verdict-reason">“{b.reason}”</blockquote>}
             {b.appealed && <div className="appeal-note">This verdict was reached on appeal.</div>}
           </section>
@@ -235,9 +259,20 @@ export default function BountyModal({
           )}
 
           {b.status === 4 && cap.hasAppeal && isWorker && (
-            <Button variant="violet" busy={busy === 'appeal'} onClick={() => act('appeal', [String(b.id)], BigInt(b.stake_required), 'Appeal filed. Re-run the jury.')}>
-              Appeal · bond {formatGen(b.stake_required)} {sym}
-            </Button>
+            <div className="appeal-row">
+              <Field label="Rebuttal (optional)" hint="Argue your case. It is admitted into evidence on-chain and the AI defense brief must engage with it on re-trial.">
+                <textarea
+                  className="rebuttal-input"
+                  value={rebuttal}
+                  onChange={(e) => setRebuttal(e.target.value)}
+                  placeholder="e.g. These are my own field notes from a real shift; the specifics are verifiable…"
+                  rows={3}
+                />
+              </Field>
+              <Button variant="violet" busy={busy === 'appeal'} onClick={() => act('appeal', [String(b.id), rebuttal.trim()], BigInt(b.stake_required), 'Appeal filed with your rebuttal. Re-run the jury.')}>
+                Appeal · bond {formatGen(b.stake_required)} {sym}
+              </Button>
+            </div>
           )}
           {b.status === 4 && cap.hasFinalize && isClient && (
             appealWindowOpen(b) ? (

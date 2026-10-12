@@ -259,6 +259,24 @@ input:focus, textarea:focus { outline: none; border-color: var(--cyan); box-shad
 .lens-score { font-size: 12px; color: var(--cyan); }
 .lens-finding { margin: 0; font-size: 13px; color: #cfd6e6; line-height: 1.45; }
 
+/* v0.5 — the AI courtroom: adversarial briefs */
+.courtroom { margin: 4px 0 14px; }
+.courtroom-head { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin-bottom: 8px; }
+.briefs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 560px) { .briefs { grid-template-columns: 1fr; } }
+.brief { padding: 11px 13px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-2); border-left-width: 3px; }
+.brief p { margin: 5px 0 0; font-size: 13px; color: #cfd6e6; line-height: 1.5; }
+.brief-pros { border-left-color: var(--red); }
+.brief-def { border-left-color: var(--lime); }
+.brief-tag { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; }
+.brief-pros .brief-tag { color: var(--red); }
+.brief-def .brief-tag { color: var(--lime); }
+.rebuttal { margin-top: 10px; padding: 11px 13px; border: 1px solid var(--border); border-left: 3px solid var(--violet); border-radius: var(--radius-sm); background: rgba(139,116,255,0.06); }
+.rebuttal .brief-tag { color: var(--violet); }
+.rebuttal p { margin: 5px 0 0; font-size: 13px; font-style: italic; color: #dbe1ee; line-height: 1.5; }
+.appeal-row { display: flex; flex-direction: column; gap: 10px; }
+.rebuttal-input { width: 100%; resize: vertical; font-family: inherit; font-size: 13px; line-height: 1.5; }
+
 /* v0.4 — explorer row cross-check tag */
 .case-cross { display: inline-block; margin: 4px 0; font-size: 11px; font-weight: 600; font-family: var(--font-mono); }
 .case-cross.tone-red { color: var(--red); }
