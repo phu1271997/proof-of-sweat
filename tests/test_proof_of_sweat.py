@@ -73,13 +73,26 @@ AI_SLOP = json.dumps({
     "reason": "Generic phrasing and hollow structure typical of AI generation.",
 })
 
+# v0.5 "AI Courtroom": the adversarial-briefs pass returns both sides of the case.
+BRIEFS = json.dumps({
+    "prosecution": "The structure is uniform and the specifics are hollow — hallmarks of AI padding.",
+    "defense": "The piece carries concrete lived detail and a consistent first-person voice a real worker would write.",
+})
+
 
 def _mock_ok(vm, llm_response=GENUINE, body="Real, specific deliverable content.",
-             search_body=CLEAN_SEARCH):
+             search_body=CLEAN_SEARCH, briefs=None):
     # The cross-check hits a search engine; register it FIRST so the catch-all
     # deliverable mock below does not shadow it (first match wins).
     vm.mock_web(r".*duckduckgo.*", {"status": 200, "body": search_body})
     vm.mock_web(r".*", {"status": 200, "body": body})
+    # v0.5 runs TWO LLM passes. When a caller wants the briefs populated it passes
+    # `briefs`; that mock is registered FIRST so it wins for the briefs prompt,
+    # and the catch-all below answers the judge's ruling prompt. With `briefs=None`
+    # the single catch-all answers both passes (the briefs parse to empty, which is
+    # exactly how the contract degrades) — keeping every pre-v0.5 test unchanged.
+    if briefs is not None:
+        vm.mock_llm(r"ADVERSARIAL BRIEFS", briefs)
     vm.mock_llm(r".*", llm_response)
 
 
@@ -345,7 +358,7 @@ def test_appeal_overturns_and_pays(direct_vm, direct_deploy, direct_alice, direc
     # worker appeals with a bond
     direct_vm.sender = direct_bob
     direct_vm.value = STAKE
-    c.appeal(bid)
+    c.appeal(bid, "")
     direct_vm.value = 0
     assert _bounty(c, bid)["status"] == 5  # APPEALED
     # re-adjudication now sees genuine work
@@ -366,7 +379,7 @@ def test_appeal_upheld_pays_client(direct_vm, direct_deploy, direct_alice, direc
     client = _bounty(c, bid)["client"]
     direct_vm.sender = direct_bob
     direct_vm.value = STAKE
-    c.appeal(bid)
+    c.appeal(bid, "")
     direct_vm.value = 0
     # fraud upheld on appeal
     c.adjudicate(bid)
@@ -386,7 +399,59 @@ def test_appeal_requires_min_bond(direct_vm, direct_deploy, direct_alice, direct
     direct_vm.sender = direct_bob
     direct_vm.value = STAKE - 1
     with direct_vm.expect_revert("appeal bond must be at least"):
-        c.appeal(bid)
+        c.appeal(bid, "")
+
+
+# ── v0.5 the AI courtroom (adversarial deliberation) ──────────────────────────
+def test_courtroom_briefs_recorded(direct_vm, direct_deploy, direct_alice, direct_bob):
+    """Both adversarial briefs from the on-chain trial are stored and returned to the UI."""
+    c, bid = _new_bounty(direct_vm, direct_deploy, direct_alice)
+    _submit(c, direct_vm, bid, direct_bob)
+    _mock_ok(direct_vm, GENUINE, briefs=BRIEFS)
+    c.adjudicate(bid)
+    b = _bounty(c, bid)
+    assert "hollow" in b["prosecution"]          # prosecution brief persisted
+    assert "first-person voice" in b["defense"]  # defense brief persisted
+    assert b["verdict"] == "GENUINE"             # judge pass still rules
+
+
+def test_courtroom_degrades_without_briefs(direct_vm, direct_deploy, direct_alice, direct_bob):
+    """If the briefs pass yields nothing usable, adjudication still produces a
+    verdict (the briefs simply degrade to empty). Backward-compatible behaviour."""
+    c, bid = _new_bounty(direct_vm, direct_deploy, direct_alice)
+    _submit(c, direct_vm, bid, direct_bob)
+    _mock_ok(direct_vm, GENUINE)  # single catch-all answers both passes
+    verdict = c.adjudicate(bid)
+    b = _bounty(c, bid)
+    assert verdict == "GENUINE"
+    assert b["prosecution"] == "" and b["defense"] == ""
+    assert b["status"] == 3  # APPROVED
+
+
+def test_appeal_rebuttal_admitted_into_evidence(direct_vm, direct_deploy, direct_alice, direct_bob):
+    """The worker's written rebuttal is admitted into the on-chain record on appeal
+    and the stricter re-trial can overturn the ruling."""
+    c, bid = _new_bounty(direct_vm, direct_deploy, direct_alice)
+    _submit(c, direct_vm, bid, direct_bob)
+    _mock_ok(direct_vm, AI_SLOP)
+    c.adjudicate(bid)
+    assert _bounty(c, bid)["status"] == 4  # REJECTED
+    worker = _bounty(c, bid)["worker"]
+    plea = "This is my own field notes from a shift I worked last Tuesday; the timestamps are real."
+    direct_vm.sender = direct_bob
+    direct_vm.value = STAKE
+    c.appeal(bid, plea)
+    direct_vm.value = 0
+    b = _bounty(c, bid)
+    assert b["status"] == 5           # APPEALED
+    assert b["rebuttal"] == plea      # the plea is on the record
+    # the stricter re-trial now sees genuine work and overturns
+    direct_vm.clear_mocks()
+    _mock_ok(direct_vm, GENUINE)
+    c.adjudicate(bid)
+    b = _bounty(c, bid)
+    assert b["status"] == 3  # APPROVED
+    assert c.get_credit(worker) == str(REWARD + STAKE + STAKE)
 
 
 # ── client finalize + cancel ─────────────────────────────────────────────────
@@ -424,7 +489,7 @@ def test_client_cannot_finalize_during_appeal_window(direct_vm, direct_deploy, d
     # and the worker can still exercise the appeal right the window protects
     direct_vm.sender = direct_bob
     direct_vm.value = STAKE
-    c.appeal(bid)
+    c.appeal(bid, "")
     direct_vm.value = 0
     assert _bounty(c, bid)["status"] == 5  # APPEALED
 
