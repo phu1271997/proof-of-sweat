@@ -1,4 +1,4 @@
-# v0.4.1
+# v0.5.0
 # { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
 from genlayer import *
 import json
@@ -31,8 +31,32 @@ from dataclasses import dataclass
 #     two validators who merely phrase things differently still agree while any
 #     real disagreement on meaning or on the pay/no-pay decision blocks consensus.
 #
-# Consensus checks MEANING (the verdict + every pay gate), not JSON shape — see
-# validator_fn.
+# ── v0.5.0 — THE AI COURTROOM (adversarial deliberation) ─────────────────────
+# A single judge — even a three-lens one — can anchor on its first impression.
+# v0.5 turns one reasoning pass into an ADVERSARIAL TRIAL that runs entirely
+# on-chain inside the non-deterministic block:
+#   • STAGE A — ADVERSARIAL BRIEFS. One structured pass writes BOTH sides of the
+#     case from the same evidence: a PROSECUTION brief arguing the work is fraud
+#     (AI-generated / plagiarized / off-spec) and a DEFENSE brief arguing it is
+#     genuine — each forced to cite concrete evidence from the deliverable and the
+#     live web cross-check. Neither side can wave its hands.
+#   • STAGE B — THE RULING. A second pass acts as the PRESIDING JUDGE: it weighs
+#     both briefs against the evidence and returns the final verdict, the three
+#     lens scores, and the pay decision. Seeing the strongest case for *both*
+#     outcomes before ruling is what pushes borderline calls off the fence.
+#   • WORKER AGENCY ON APPEAL. A rejected worker can attach a written REBUTTAL
+#     when they appeal; it is admitted into evidence and the Defense brief must
+#     engage with it. The appeal is no longer a silent dice re-roll — the worker
+#     gets to argue their side into the on-chain record.
+#   • Both briefs (and the rebuttal) are stored on-chain and shown in the UI, so
+#     anyone can read exactly how the verdict was argued, not just what it was.
+#
+# Across one adjudication the contract now performs FOUR non-deterministic ops on
+# chain: read the deliverable, a live quoted web search (plagiarism cross-check),
+# the adversarial-briefs pass, and the judge's ruling pass.
+#
+# Consensus is UNCHANGED and still checks MEANING: validators agree on the verdict
+# and every pay gate (not the free-text briefs or reason) — see validator_fn.
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Verdict categories returned by the AI jury.
@@ -66,6 +90,10 @@ _DEFAULT_APPEAL_WINDOW_SECS = 300
 _MAX_EVIDENCE_CHARS = 8000
 # How much of the live search result page we feed the model for the cross-check.
 _MAX_CROSSCHECK_CHARS = 3500
+# How much of each adversarial brief we keep (stored on-chain + shown in the UI).
+_MAX_BRIEF_CHARS = 1200
+# How much of the worker's appeal rebuttal we admit into evidence.
+_MAX_REBUTTAL_CHARS = 1500
 
 
 @gl.evm.contract_interface
@@ -197,6 +225,9 @@ class Bounty:
     cross_check: u8         # v0.4 live web cross-check outcome (X_UNKNOWN/CLEAN/HIT)
     panel: str              # v0.4 JSON array of the per-lens auditor findings
     reason: str
+    prosecution: str        # v0.5 courtroom: brief arguing the work is fraud
+    defense: str            # v0.5 courtroom: brief arguing the work is genuine
+    rebuttal: str           # v0.5 worker's written appeal statement (admitted into evidence)
     appealed: bool
     rejected_at: u256       # v0.4.1 epoch secs the bounty entered REJECTED (0 if never)
 
@@ -281,6 +312,9 @@ class Contract(gl.Contract):
             cross_check=u8(X_UNKNOWN),
             panel="",
             reason="",
+            prosecution="",
+            defense="",
+            rebuttal="",
             appealed=False,
             rejected_at=u256(0),
         )
@@ -339,6 +373,7 @@ class Contract(gl.Contract):
         spec = b.spec
         rules = b.rules
         url = b.deliverable_url
+        rebuttal = b.rebuttal
         is_appeal = b.status == u8(S_APPEALED)
         conf_threshold = int(self.confidence_threshold)
         spec_threshold = int(self.min_spec_match)
@@ -379,8 +414,8 @@ class Contract(gl.Contract):
             o = _clamp(_as_int(d.get("originality", 0), 0)) >= orig_threshold
             return (v, c, s, a, o)
 
-        def _run_panel() -> dict:
-            # 1) Read the deliverable itself.
+        def _run_courtroom() -> dict:
+            # 1) Read the deliverable itself (web read #1).
             try:
                 page = gl.nondet.web.render(url, mode="text")
             except Exception:
@@ -398,11 +433,13 @@ class Contract(gl.Contract):
                          "finding": "The deliverable URL returned no readable content (dead link, empty, or blocked)."},
                     ],
                     "reason": "The deliverable URL returned no readable content (dead link, empty, or blocked).",
+                    "prosecution": "No case to argue: the deliverable URL returned no readable content.",
+                    "defense": "The defense cannot make a case: there is no readable deliverable to examine.",
                     "payment_approved": False,
                 }
             evidence = page[:_MAX_EVIDENCE_CHARS]
 
-            # 2) LIVE WEB CROSS-CHECK — a SECOND, independent web read.
+            # 2) LIVE WEB CROSS-CHECK — a SECOND, independent web read (web read #2).
             #    Search the open web for a distinctive phrase from the work. If
             #    the exact phrase surfaces elsewhere, that is concrete external
             #    evidence of copying; if the search is blocked, we degrade to
@@ -427,36 +464,13 @@ class Contract(gl.Contract):
                 X_UNKNOWN: "No external corroboration was available (the web search returned nothing).",
             }[cross_check]
 
-            strictness = (
-                "This is an APPEAL of a prior fraud ruling. Re-examine carefully and overturn "
-                "to GENUINE if the earlier call was not backed by concrete evidence."
-                if is_appeal
-                else "This is the first review."
+            rebuttal_block = (
+                rebuttal.strip() if (is_appeal and len(rebuttal.strip()) > 0)
+                else "(the worker did not file a written rebuttal)"
             )
 
-            # 3) ONE structured reasoning pass over THREE auditor lenses.
-            prompt = f"""You are a three-member authenticity PANEL adjudicating a paid work bounty.
-{strictness}
-
-Reason explicitly as THREE independent auditors, each with a narrow mandate, then
-synthesise ONE verdict. Presume the work is GENUINE and only rule against it when a
-panelist can cite CONCRETE evidence. A fair, honest worker must be paid; do not punish
-competent writing merely for being polished.
-
-PANEL MEMBERS:
-  1. FORENSIC AUTHORSHIP — Was this written by a human doing real work, or machine-
-     generated? Human hallmarks: specific lived detail, concrete named facts, a point
-     of view, uneven but purposeful structure. AI hallmarks: hollow generic phrasing,
-     fabricated or self-contradictory specifics, uniform padding, lists that say nothing.
-     Score authenticity 0-100 (100 = unmistakably human).
-  2. ORIGINALITY / PLAGIARISM — Is this the worker's own text or copied? Use the LIVE
-     WEB CROSS-CHECK result below as evidence. Verbatim passages, embedded site chrome
-     (e.g. "Skip to main content", cookie banners, doc-site navigation), or a confirmed
-     web match mean PLAGIARIZED. Score originality 0-100 (100 = fully original).
-  3. SPEC-COMPLIANCE — Independently of authenticity, does it satisfy what was asked?
-     Genuine work can still be off-spec. Score spec_match 0-100.
-
-BOUNTY SPEC (what the worker was asked to deliver):
+            # Shared evidence record both sides and the judge reason over.
+            evidence_record = f"""BOUNTY SPEC (what the worker was asked to deliver):
 {spec}
 
 RULES THE WORKER MUST FOLLOW:
@@ -470,10 +484,78 @@ Raw search excerpt (may be empty):
 {cross_text}
 \"\"\"
 
+WORKER'S APPEAL REBUTTAL (admitted into evidence):
+{rebuttal_block}
+
 SUBMITTED DELIVERABLE — text extracted from {url}:
 \"\"\"
 {evidence}
-\"\"\"
+\"\"\""""
+
+            # 3) STAGE A — ADVERSARIAL BRIEFS (nondet reasoning pass #1).
+            #    One structured pass argues BOTH sides from the same evidence so
+            #    the judge sees the strongest case for each outcome, not just its
+            #    own first impression.
+            briefs_prompt = f"""You are preparing the ADVERSARIAL BRIEFS for a paid-work authenticity trial.
+From the SAME evidence, write BOTH sides of the case. Each brief must stand on concrete
+evidence quoted or paraphrased from the record — no hand-waving, no appeals to vibe.
+
+PROSECUTION: argue as forcefully as the evidence honestly allows that the deliverable is
+FRAUD — machine-generated (hollow generic phrasing, fabricated specifics, uniform padding),
+plagiarized (verbatim passages, embedded site chrome, or a confirmed web cross-check hit),
+or materially off-spec. If the evidence for fraud is weak, say so plainly rather than inventing it.
+
+DEFENSE: argue as forcefully as the evidence honestly allows that the deliverable is GENUINE,
+original, on-spec human work (specific lived detail, concrete named facts, a real point of view).
+If the worker filed a rebuttal, engage with its strongest point directly. Do not defend the
+indefensible; concede what cannot be defended.
+
+{evidence_record}
+
+Reply with ONLY a JSON object, no prose:
+{{"prosecution": "<2-4 sentences, strongest honest case for FRAUD, citing concrete evidence>",
+  "defense": "<2-4 sentences, strongest honest case for GENUINE, citing concrete evidence and any rebuttal>"}}"""
+            try:
+                briefs = gl.nondet.exec_prompt(briefs_prompt, response_format="json")
+            except Exception:
+                briefs = {}
+            if not isinstance(briefs, dict):
+                briefs = {}
+            prosecution = str(briefs.get("prosecution", ""))[:_MAX_BRIEF_CHARS]
+            defense = str(briefs.get("defense", ""))[:_MAX_BRIEF_CHARS]
+
+            strictness = (
+                "This is an APPEAL of a prior fraud ruling. Re-examine from scratch and OVERTURN "
+                "to GENUINE if the prosecution's case is not backed by concrete evidence; give the "
+                "worker's rebuttal genuine weight."
+                if is_appeal
+                else "This is the first review."
+            )
+
+            # 4) STAGE B — THE RULING (nondet reasoning pass #2).
+            #    The presiding judge weighs both briefs against the evidence and
+            #    scores the SAME three lenses as before, so the pay gates and the
+            #    consensus contract are unchanged.
+            judge_prompt = f"""You are the PRESIDING JUDGE in a paid-work authenticity trial.
+{strictness}
+Two briefs have been filed from the same evidence. Weigh them AGAINST THE EVIDENCE — do not
+simply split the difference. Presume the work is GENUINE and rule for the prosecution only when
+its brief is backed by concrete evidence you can verify in the record. A fair, honest worker must
+be paid; polish alone is NOT evidence of fraud.
+
+PROSECUTION BRIEF:
+{prosecution if len(prosecution) > 0 else "(no prosecution brief was filed)"}
+
+DEFENSE BRIEF:
+{defense if len(defense) > 0 else "(no defense brief was filed)"}
+
+{evidence_record}
+
+Score three independent lenses:
+  • FORENSIC AUTHORSHIP → authenticity 0-100 (100 = unmistakably human).
+  • ORIGINALITY / PLAGIARISM → originality 0-100 (100 = fully original); a confirmed web
+    cross-check hit or embedded site chrome means copied.
+  • SPEC-COMPLIANCE → spec_match 0-100 (genuine work can still be off-spec).
 
 Final verdict (exactly one):
   • PLAGIARIZED — copied from an external source (verbatim passages, embedded site
@@ -494,8 +576,8 @@ Reply with ONLY a JSON object, no prose:
      {{"lens": "Originality", "score": <0-100>, "finding": "<one sentence; reference the web cross-check>"}},
      {{"lens": "Spec Compliance", "score": <0-100>, "finding": "<one sentence>"}}
   ],
-  "reason": "<two-sentence synthesis citing the strongest concrete evidence>"}}"""
-            res = gl.nondet.exec_prompt(prompt, response_format="json")
+  "reason": "<two-sentence ruling that weighs both briefs and cites the strongest concrete evidence>"}}"""
+            res = gl.nondet.exec_prompt(judge_prompt, response_format="json")
             if not isinstance(res, dict):
                 res = {
                     "verdict": V_UNCLEAR,
@@ -506,8 +588,10 @@ Reply with ONLY a JSON object, no prose:
                     "panel": [],
                     "reason": "Invalid response format from validator model.",
                 }
-            # Attach the deterministic cross-check outcome and the pay decision.
+            # Attach the deterministic cross-check outcome, the briefs, and the pay decision.
             res["cross_check"] = cross_check
+            res["prosecution"] = prosecution
+            res["defense"] = defense
             # Safety net: a confirmed verbatim web hit floors originality so a
             # model that under-weights the cross-check still can't pay a copy.
             if cross_check == X_HIT:
@@ -516,7 +600,7 @@ Reply with ONLY a JSON object, no prose:
             return res
 
         def leader_fn():
-            return _run_panel()
+            return _run_courtroom()
 
         def validator_fn(res) -> bool:
             # Leader must have returned successfully.
@@ -525,7 +609,7 @@ Reply with ONLY a JSON object, no prose:
             leader = res.calldata
             if not isinstance(leader, dict):
                 return False
-            mine = _run_panel()
+            mine = _run_courtroom()
             if not isinstance(mine, dict):
                 return False
 
@@ -556,6 +640,8 @@ Reply with ONLY a JSON object, no prose:
         if cross_check not in (X_UNKNOWN, X_CLEAN, X_HIT):
             cross_check = X_UNKNOWN
         reason = str(result.get("reason", ""))[:1000]
+        prosecution = str(result.get("prosecution", ""))[:_MAX_BRIEF_CHARS]
+        defense = str(result.get("defense", ""))[:_MAX_BRIEF_CHARS]
         panel_val = result.get("panel", [])
         try:
             panel_json = json.dumps(panel_val)[:2000]
@@ -570,6 +656,8 @@ Reply with ONLY a JSON object, no prose:
         b.cross_check = u8(cross_check)
         b.panel = panel_json
         b.reason = reason
+        b.prosecution = prosecution
+        b.defense = defense
 
         approve = _payment_approved(result)
 
@@ -595,7 +683,11 @@ Reply with ONLY a JSON object, no prose:
         return verdict
 
     @gl.public.write.payable
-    def appeal(self, bounty_id: str) -> None:
+    def appeal(self, bounty_id: str, rebuttal: str) -> None:
+        """Worker stakes a bond to force a stricter re-trial. The optional written
+        `rebuttal` is admitted into evidence: the Defense brief must engage with it
+        and the judge must give it weight, so the appeal is a real argued case, not
+        a silent re-roll of the jury."""
         b = self._get(bounty_id)
         caller = _addr_str(gl.message.sender_address)
         if caller != b.worker:
@@ -607,6 +699,7 @@ Reply with ONLY a JSON object, no prose:
         if gl.message.value < b.stake_required:
             raise gl.vm.UserError("appeal bond must be at least the original stake")
         b.worker_stake = b.worker_stake + bigint(gl.message.value)
+        b.rebuttal = rebuttal.strip()[:_MAX_REBUTTAL_CHARS]
         b.appealed = True
         b.status = u8(S_APPEALED)
 
@@ -679,6 +772,9 @@ Reply with ONLY a JSON object, no prose:
             "cross_check": int(b.cross_check),
             "panel": panel,
             "reason": b.reason,
+            "prosecution": b.prosecution,
+            "defense": b.defense,
+            "rebuttal": b.rebuttal,
             "appealed": b.appealed,
             "rejected_at": int(b.rejected_at),
             "finalizable_at": (int(b.rejected_at) + int(self.appeal_window_secs)) if int(b.rejected_at) > 0 else 0,
