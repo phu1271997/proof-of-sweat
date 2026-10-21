@@ -222,7 +222,8 @@ Full walkthrough in [`scripts/deploy/DEPLOY.md`](scripts/deploy/DEPLOY.md). Shor
 | **Network** | GenLayer **Studio Next** (Chain ID `61997`, Consensus v0.6) |
 | **Contract address** | `0x1fC085D937fbDCee73f9c4C5A1bcB767346716Fe` (v0.6.0 — Skeptics' Market, staked AI-settled second opinions) |
 | **Explorer** | https://explorer-studio-dev.genlayer.com/address/0x1fC085D937fbDCee73f9c4C5A1bcB767346716Fe |
-| **Live app** | https://proofofsweat-app-omega.vercel.app |
+| **Live app (v0.6.0)** | https://proof-of-sweat-eosin.vercel.app |
+| **Live app (canonical)** | https://proofofsweat-app-omega.vercel.app |
 | **Repo** | https://github.com/phu1271997/proof-of-sweat |
 | **Demo video** | `TO BE FILLED` |
 
