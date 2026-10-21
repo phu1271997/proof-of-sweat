@@ -72,6 +72,35 @@ cross-check), argues the adversarial briefs, and rules. Consensus is **unchanged
 checks *meaning* — validators agree on the verdict and every pay gate, never on the free-text
 briefs. This is advanced on-chain AI reasoning no ordinary smart contract can approach.
 
+## The Skeptics' Market — staked, AI-settled second opinions (v0.6.0)
+
+A jury verdict used to end the story. The Skeptics' Market turns **every settled
+verdict into a permissionless, staked truth market whose settler is a fresh run of
+the same on-chain AI courtroom** — so the jury is never the final word, and being
+wrong costs money.
+
+- **Anyone can challenge a resolved verdict.** `open_challenge` / `back_challenge`
+  (both payable) let anyone stake native GEN on **GENUINE** (the work is real) or
+  **FAKE** (the work is fraud). Both sides accumulate a pot during a stake window.
+- **A fresh AI re-trial settles it, trustlessly.** When the window closes,
+  `resolve_challenge` runs the **same adversarial courtroom again** inside
+  `gl.vm.run_nondet` — it re-reads the deliverable, re-runs the live web cross-check,
+  re-argues both briefs and re-rules. The side the fresh ruling agrees with **wins and
+  splits the whole pot pro-rata**; an `UNCLEAR` re-trial **VOIDs and refunds** everyone.
+  There is no admin, no oracle, no multisig — the settlement *is* an on-chain AI judgment.
+- **An overturn rewrites the record.** If the market's fresh ruling flips the bounty's
+  original stance, the worker's **portable on-chain reputation is corrected** — a staked
+  crowd plus a fresh AI panel can overturn a permanent record, not merely win a side bet.
+  This is the economic pressure that keeps the jury honest.
+- **Consensus still checks meaning.** The settling `validator_fn` agrees on the re-trial
+  verdict **and** every pay gate, so the winning side is identical across the network or
+  there is no settlement — the same meaning-not-shape guarantee the jury itself uses.
+
+> **Why this is pure GenLayer.** The market's settler is a *subjective judgment over live
+> web content*. A Solidity prediction market needs a human/oracle to report the outcome;
+> here the outcome is decided on-chain by validators each running a different LLM. Remove
+> the AI and the market has nothing to settle it.
+
 ## AI Jury 2.0 — multi-perspective panel + live web cross-check (v0.4.0)
 
 The adjudication was rebuilt from a single prompt into a **three-lens panel backed by a
@@ -126,7 +155,7 @@ live "Finalize" button while the window is open. Timestamps use a consensus-safe
 ```
 contracts/       proof_of_sweat.py  ·  proof_of_sweat_studio_next.py  ·  storage_test.py
 frontend/        React + genlayer-js dApp
-tests/           direct-mode gltest suite (34 cases, all passing)
+tests/           direct-mode gltest suite (48 cases, all passing)
 docs/samples/    example deliverables used by the jury demo
 scripts/deploy/  DEPLOY.md — studionet deploy walkthrough  ·  seed_phase1_jury2.js
 ```
@@ -162,6 +191,11 @@ appeal flow, and — most importantly — the **consensus guarantee**:
   on-chain on appeal and the stricter re-trial can overturn the ruling.
 - `test_courtroom_degrades_without_briefs` — adjudication still produces a verdict if the
   briefs pass yields nothing (backward-compatible degrade).
+- **Skeptics' Market (`tests/test_challenge_market.py`)** — `test_resolve_upholds_genuine_and_splits_pot`
+  (a 600 pot splits 150/450 pro-rata across the winning side), `test_resolve_overturns_to_fake_and_marks_worker`
+  and `test_resolve_overturns_fraud_to_genuine` (a fresh re-trial flips the verdict and rewrites the worker's
+  reputation), `test_unclear_retrial_voids_and_refunds` (VOID refunds every staker), and
+  `test_challenge_consensus_disagrees_on_different_verdict` (the settling re-trial needs real consensus too).
 
 ## Deploy to studionet + run the dApp
 
@@ -186,17 +220,17 @@ Full walkthrough in [`scripts/deploy/DEPLOY.md`](scripts/deploy/DEPLOY.md). Shor
 | | |
 |---|---|
 | **Network** | GenLayer **Studio Next** (Chain ID `61997`, Consensus v0.6) |
-| **Contract address** | `0x8EFD51C83e606B1adCd95E14b73DD17967Ef20F0` (v0.5.0 — AI Courtroom, adversarial deliberation) |
-| **Explorer** | https://explorer-studio-dev.genlayer.com/address/0x8EFD51C83e606B1adCd95E14b73DD17967Ef20F0 |
+| **Contract address** | `0x1fC085D937fbDCee73f9c4C5A1bcB767346716Fe` (v0.6.0 — Skeptics' Market, staked AI-settled second opinions) |
+| **Explorer** | https://explorer-studio-dev.genlayer.com/address/0x1fC085D937fbDCee73f9c4C5A1bcB767346716Fe |
 | **Live app** | https://proofofsweat-app-omega.vercel.app |
 | **Repo** | https://github.com/phu1271997/proof-of-sweat |
 | **Demo video** | `TO BE FILLED` |
 
 > Previous versions: `0x38e53C1BF5128f05D6EAd05b56bdfF4c8305cd68` (v0.3, single-prompt jury),
 > `0xC1d76d6FF8DFFE2429e4Fb4f4A8174647524F27D` (v0.4.0, AI Jury 2.0),
-> `0x9276b3d543297bE6fAa72c869a7C34431850ad68` (v0.4.1, + protected appeal window). v0.5.0 is a
-> fresh deploy because the storage schema gained the courtroom fields (`prosecution`, `defense`,
-> `rebuttal`).
+> `0x9276b3d543297bE6fAa72c869a7C34431850ad68` (v0.4.1, + protected appeal window),
+> `0x8EFD51C83e606B1adCd95E14b73DD17967Ef20F0` (v0.5.0, AI Courtroom). v0.6.0 is a fresh deploy
+> because the storage schema gained the `Challenge` struct and the Skeptics' Market methods.
 
 **Multichain: Arc settlement layer.** GenLayer judges; Arc settles in USDC. The `ArcSettlement`
 contract is deployed on Arc testnet and the app has a chain switcher (GenLayer / Arc).

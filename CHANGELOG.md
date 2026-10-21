@@ -1,5 +1,62 @@
 # Changelog
 
+## [1.4.0] — The Skeptics' Market: staked, AI-settled second opinions (Milestone — Phase 3)
+
+A jury verdict used to be the end of the story — once the AI jury ruled, the case
+was closed and nobody could put money behind "the jury got this wrong." v0.6 turns
+every settled verdict into a **permissionless, staked truth market** whose settler
+is a fresh run of the same on-chain AI courtroom. This is a major-feature milestone:
+new economic game theory, four new contract methods, a reused-but-independent nondet
+settlement path, and a reputation-correction mechanism with real teeth.
+
+### Contract (`contracts/proof_of_sweat_studio_next.py`, `contracts/proof_of_sweat.py`) → v0.6.0
+- **Staked challenge market.** Anyone can open a second opinion on a *resolved*
+  bounty and stake native GEN on **GENUINE** (the work is real) or **FAKE** (the
+  work is fraud); others back either side until a stake window closes.
+  `open_challenge(bounty_id, side)` / `back_challenge(bounty_id, side)` (both payable).
+- **Trustless AI settlement.** After the window, `resolve_challenge(bounty_id)` runs
+  the **same adversarial AI courtroom again** inside `gl.vm.run_nondet` as the
+  settler — four more on-chain nondet ops (read deliverable, live web cross-check,
+  adversarial briefs, ruling). The side the fresh ruling agrees with **wins and
+  splits the whole pot pro-rata**; an `UNCLEAR` re-trial **VOIDs and refunds** everyone.
+- **Reputation correction (the teeth).** If the market's fresh ruling **flips** the
+  bounty's original stance, the worker's portable on-chain reputation is rewritten
+  (`overturned` on the challenge) — a staked crowd plus a fresh AI panel can correct
+  the permanent record, not merely win a side bet.
+- **Shared courtroom.** The adversarial-trial logic was extracted into a single
+  module-level `_courtroom(...)` used by both `adjudicate()` and `resolve_challenge()`,
+  so the jury and the market settler run byte-for-byte the same reasoning.
+- **Consensus unchanged and still over meaning.** The settling `validator_fn`
+  compares the re-trial verdict **and** every pay gate — the winning side is identical
+  across the network or there is no settlement. Two validators that reach different
+  settling verdicts do **not** reach consensus.
+- **Flat storage.** The per-staker ledger lives in a JSON `stakes_json` string (never
+  a nested `DynArray`/`TreeMap`), so the schema generator stays happy. New views:
+  `get_challenge`, `get_challenge_by_id`, `get_all_challenges`; `get_config` exposes
+  `challenge_window_secs` / `total_challenges`.
+
+### Tests (`tests/`)
+- 34 → **48 passing**. New `tests/test_challenge_market.py`: zero-state views, every
+  payable/state/window guard, a full open→back→settle flow with a **pro-rata pot split**
+  (100:300 GENUINE stakes split a 600 pot into 150/450), an **overturn** that marks the
+  worker's reputation (both GENUINE→FRAUD and FRAUD→GENUINE), a **VOID refund** on an
+  UNCLEAR re-trial, and the **consensus guarantee** on the settling re-trial.
+
+### Frontend (`frontend/`)
+- New **Skeptics' Market** panel on every resolved bounty: a GENUINE/FAKE side picker,
+  a live pot bar with both sides and a stake-window countdown, a one-click **Settle with
+  a fresh AI re-trial** action once the window closes, and the settled result — the
+  re-trial verdict, the winning side, an **"OVERTURNED the jury"** badge, both re-trial
+  briefs, and a withdraw button for winnings. The Explorer gained **market challenges**
+  and **verdicts overturned** tiles.
+
+### Redeployed to GenLayer Studio Next
+- New contract (schema gained the `Challenge` struct + market methods):
+  `0x1fC085D937fbDCee73f9c4C5A1bcB767346716Fe`. Seeded end-to-end by real validator
+  consensus: a GENUINE bounty paid by the jury, a Skeptics' Market opened on it (FAKE vs
+  GENUINE stakes), and the market settled by a fresh on-chain AI re-trial with the winning
+  side paid out.
+
 ## [1.3.0] — The AI Courtroom: adversarial deliberation (Milestone — Phase 2)
 
 The heart of the product — the adjudication — was rebuilt again, this time from a single

@@ -79,6 +79,9 @@ On Arc: the jury runs on GenLayer and the verdict is relayed by an oracle — no
 **Step 6 — Get paid (or appeal).**
 If the verdict is Genuine (confidence ≥ 60%, spec-match ≥ 50%), the worker is credited reward + stake. Click the glowing "Withdraw [amount] [GEN/USDC]" button in the header to pull funds to your wallet. If rejected, the worker can type a rebuttal and click "Appeal · bond [amount]" to force a stricter second trial in which the AI defense must engage with that rebuttal. If the worker does not appeal within the protected window, the client clicks "Finalize & claim escrow" to recover the funds.
 
+**Step 7 — Second-guess the jury (Skeptics' Market).**
+Open any *settled* bounty (paid or fraud) and scroll to the **Skeptics' Market** panel. Stake GEN on **Genuine** or **Fake** to bet on whether the jury got it right; others can back either side. When the stake window closes, click **Settle with a fresh AI re-trial** — the same on-chain courtroom runs again, the side it agrees with splits the whole pot, and an overturn rewrites the worker's on-chain reputation. Winners click **Withdraw winnings**.
+
 **Want to post a task instead?** Go to the "Post" tab, fill in a title, spec, rules, reward, and worker stake (or click "use sample"), and click "Escrow reward & post". A different wallet then claims and submits. If nobody claims it, you can click "Cancel & refund" to get your escrowed reward back.
 
 **Want to see it fail?** In step 4, submit an AI-written or copied page instead. The verdict comes back AI-generated or Plagiarized and no payment is released. The worker can then appeal.
@@ -96,9 +99,9 @@ Open the app; reading needs no wallet. Open a settled bounty to see the AI Court
 
 ## Contract link
 ```
-https://explorer-studio-dev.genlayer.com/address/0x8EFD51C83e606B1adCd95E14b73DD17967Ef20F0
+https://explorer-studio-dev.genlayer.com/address/0x1fC085D937fbDCee73f9c4C5A1bcB767346716Fe
 ```
-- Address: `0x8EFD51C83e606B1adCd95E14b73DD17967Ef20F0` (v0.5.0 — AI Courtroom, adversarial deliberation)
+- Address: `0x1fC085D937fbDCee73f9c4C5A1bcB767346716Fe` (v0.6.0 — Skeptics' Market, staked AI-settled second opinions)
 - Network: **GenLayer Studio Next** (Chain ID: `61997`, Consensus v0.6)
 
 ## Website
