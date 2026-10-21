@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Badge, Meter, Empty, Spinner } from './ui.jsx';
 import { STATUS, VERDICT, CROSS, formatGen, shortAddr } from '../lib/format.js';
 
@@ -36,11 +36,36 @@ export default function Explorer({ bounties, loading, adapter, onOpen }) {
     return resolved;
   }, [resolved, filter]);
 
+  // v0.6 Skeptics' Market — crowd-staked second opinions on settled verdicts.
+  const [challenges, setChallenges] = useState([]);
+  useEffect(() => {
+    let active = true;
+    if (adapter.cap?.hasMarket && adapter.listChallenges) {
+      adapter.listChallenges().then((c) => { if (active) setChallenges(c || []); }).catch(() => {});
+    } else {
+      setChallenges([]);
+    }
+    return () => { active = false; };
+  }, [adapter]);
+
+  const market = useMemo(() => {
+    let pot = 0n, overturned = 0, settled = 0;
+    for (const c of challenges) {
+      pot += big(c.pot_total);
+      if (Number(c.status) === 1) settled += 1;
+      if (c.overturned) overturned += 1;
+    }
+    return { count: challenges.length, pot: formatGen(pot), overturned, settled };
+  }, [challenges]);
+
   const stats = [
     [summary.count, 'cases resolved'],
     [`${summary.paidOut} ${sym}`, 'paid to workers'],
     [summary.genuine, 'genuine'],
     [summary.fraud, 'fraud caught'],
+    ...(market.count > 0
+      ? [[market.count, 'market challenges'], [market.overturned, 'verdicts overturned']]
+      : []),
   ];
 
   return (

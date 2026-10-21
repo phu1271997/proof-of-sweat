@@ -3,6 +3,7 @@ import { Modal, Button, Badge, Meter, Field } from './ui.jsx';
 import { STATUS, VERDICT, CROSS, formatGen, shortAddr, sameAddr } from '../lib/format.js';
 import { friendly } from './CreateBounty.jsx';
 import { useChain } from '../lib/chainContext.jsx';
+import SkepticsMarket from './SkepticsMarket.jsx';
 
 export default function BountyModal({
   bounty,
@@ -224,6 +225,14 @@ export default function BountyModal({
             <span className="rep-detail">{rep.genuine} genuine · {rep.fraud} fraud · {formatGen(rep.earned)} {sym} earned</span>
           </section>
         )}
+
+        <SkepticsMarket
+          bounty={b}
+          account={account}
+          adapter={adapter}
+          notify={notify}
+          onRefresh={onRefresh}
+        />
 
         <div className="detail-actions">
           {canClaim && (

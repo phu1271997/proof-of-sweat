@@ -29,6 +29,8 @@ function buildAdapter(key) {
     getCredit: gl.fetchCredit,
     getBalance: gl.fetchNativeBalance,
     fetchReputation: gl.fetchReputation,
+    getChallenge: gl.fetchChallenge,
+    listChallenges: gl.fetchAllChallenges,
     send: gl.send,
   };
 }

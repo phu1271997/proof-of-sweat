@@ -473,3 +473,38 @@ input:focus, textarea:focus { outline: none; border-color: var(--cyan); box-shad
   color: var(--cyan); background: rgba(53, 208, 255, 0.08); border: 1px solid rgba(53, 208, 255, 0.2);
 }
 
+
+/* ── v0.6 Skeptics' Market ──────────────────────────────────────────────── */
+.market { margin: 6px 0 16px; padding: 14px; border: 1px solid var(--border-strong); border-radius: 14px;
+  background: linear-gradient(180deg, rgba(120,120,160,0.06), rgba(120,120,160,0.02)); }
+.market-head { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 10px; }
+.market-ico { font-size: 20px; line-height: 1.1; }
+.market-title { font-weight: 700; font-size: 15px; }
+.market-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.market-note { font-size: 13px; color: #cfd6e6; margin: 0 0 12px; line-height: 1.5; }
+.market-stake { display: grid; gap: 10px; }
+.side-pick { display: flex; gap: 8px; }
+.side-chip { flex: 1; padding: 9px 10px; border-radius: 10px; border: 1px solid var(--border-strong);
+  background: transparent; color: var(--muted); font-weight: 600; cursor: pointer; transition: all .12s; }
+.side-chip.on.side-lime { color: #06240f; background: var(--lime); border-color: var(--lime); }
+.side-chip.on.side-red { color: #2a0808; background: var(--red); border-color: var(--red); }
+.side-chip:hover { border-color: var(--text); }
+.pot-bar { display: flex; height: 12px; border-radius: 8px; overflow: hidden; background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border-strong); margin-bottom: 6px; }
+.pot-fill { height: 100%; }
+.pot-genuine { background: var(--lime); }
+.pot-fake { background: var(--red); }
+.pot-legend { display: flex; gap: 14px; font-size: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+.pot-legend .lime { color: var(--lime); }
+.pot-legend .red { color: var(--red); }
+.pot-legend .muted { color: var(--muted); margin-left: auto; }
+.market-timer { font-size: 12px; color: var(--amber); margin-bottom: 10px; }
+.market-result { margin-top: 6px; padding: 12px; border-radius: 10px; border: 1px solid var(--border-strong);
+  display: grid; gap: 10px; }
+.market-result.lime { border-color: rgba(120,230,150,0.4); background: rgba(120,230,150,0.06); }
+.market-result.red { border-color: rgba(255,120,120,0.4); background: rgba(255,120,120,0.06); }
+.market-result.void { border-color: var(--border-strong); background: rgba(255,255,255,0.03); }
+.market-result-top { font-size: 13px; line-height: 1.5; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.overturn-badge { font-size: 11px; font-weight: 800; letter-spacing: 0.4px; padding: 3px 8px; border-radius: 999px;
+  background: var(--amber); color: #2a1a00; }
+.briefs.mini .brief { font-size: 12px; }
