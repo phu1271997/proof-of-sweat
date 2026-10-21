@@ -1,4 +1,4 @@
-# v0.5.0
+# v0.6.0
 # { "Depends": "py-genlayer:5jycge4q8k23462jtb0b9fyey1s9qz928sz2nbrd9mg4sxqg2qng" }
 from genlayer import *
 import genlayer as gl
@@ -59,6 +59,23 @@ from dataclasses import dataclass
 #
 # Consensus is UNCHANGED and still checks MEANING: validators agree on the verdict
 # and every pay gate (not the free-text briefs or reason) — see validator_fn.
+#
+# ── v0.6.0 — THE SKEPTICS' MARKET (staked, AI-settled second opinions) ───────
+# A jury verdict used to be the end of the story. v0.6 opens every *resolved*
+# verdict to a permissionless, staked audit:
+#   • ANYONE can stake native GEN behind GENUINE (the work is real) or FAKE (the
+#     work is fraud) via open_challenge / back_challenge during a stake window.
+#   • When the window closes, resolve_challenge runs the SAME on-chain AI
+#     courtroom again (`_courtroom`, now a shared module-level function) as a
+#     TRUSTLESS SETTLER — four more nondet ops: read, cross-check, briefs, ruling.
+#   • The side the fresh ruling agrees with WINS and splits the whole pot
+#     pro-rata; an UNCLEAR re-trial VOIDs and refunds everyone.
+#   • An overturn REWRITES the worker's portable on-chain reputation — a staked
+#     crowd plus a fresh AI panel can correct the permanent record, not just win
+#     a bet. This is the economic teeth that keeps the jury honest.
+# Settlement consensus reuses the exact meaning-not-shape check: validators agree
+# on the re-trial verdict and every pay gate, so the winning side is identical
+# across the network or there is no settlement.
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Verdict categories returned by the AI jury.
@@ -87,6 +104,33 @@ X_HIT = 2           # the distinctive phrase WAS found verbatim online (plagiari
 # the grant. Closes the escrow flaw where a client could finalize a rejection
 # instantly and strip the worker of their advertised appeal rights.
 _DEFAULT_APPEAL_WINDOW_SECS = 300
+
+# ── v0.6.0 — THE SKEPTICS' MARKET ────────────────────────────────────────────
+# The jury's verdict used to be final. v0.6 opens every *resolved* verdict to a
+# permissionless, staked second opinion: anyone can put native GEN behind "this
+# work is GENUINE" or "this work is FAKE", and when the stake window closes the
+# contract runs the SAME on-chain AI courtroom again as a trustless settler.
+# The side the fresh ruling agrees with wins and splits the whole pot pro-rata;
+# an overturn also rewrites the worker's portable on-chain reputation. This turns
+# a one-shot jury into a continuous, self-correcting truth market — and the
+# settlement itself is a subjective AI judgment over live web content, so it is
+# exactly the thing no ordinary smart contract can do.
+C_OPEN = 0          # challenge created, stake window still open
+C_RESOLVED = 1      # stake window closed, AI re-trial settled a winning side
+C_VOID = 2          # re-trial was UNCLEAR (or no opposing stake) — everyone refunded
+
+# Which side a staker is betting on.
+SIDE_GENUINE = "GENUINE"   # bets the work is real (agrees with a GENUINE verdict)
+SIDE_FAKE = "FAKE"         # bets the work is fraud (AI_GENERATED / PLAGIARIZED)
+
+# Winning side after the re-trial (stored u8).
+W_NONE = 0
+W_GENUINE = 1
+W_FAKE = 2
+
+# Default challenge stake window (seconds): how long the market stays open for
+# stakes after it is opened, before anyone can settle it with a fresh AI re-trial.
+_DEFAULT_CHALLENGE_WINDOW_SECS = 180
 
 # How much text of the deliverable we feed the model (keeps the prompt bounded).
 _MAX_EVIDENCE_CHARS = 8000
@@ -205,6 +249,233 @@ def _distinctive_phrase(text: str) -> str:
     return " ".join(words).strip()
 
 
+def _payment_approved(d: dict, gates: tuple) -> bool:
+    """Approve payment IF AND ONLY IF the verdict is GENUINE and ALL FOUR quality
+    gates clear their thresholds. `gates` is (confidence, spec, authenticity,
+    originality). A slick, polished deliverable the forensic lens flags as
+    machine-written, or that the originality lens / live cross-check flags as
+    copied, is NOT paid even if it reads as 'on-spec'."""
+    if not isinstance(d, dict):
+        return False
+    conf_t, spec_t, auth_t, orig_t = gates
+    v = d.get("verdict")
+    c = _clamp(_as_int(d.get("confidence", 0), 0))
+    s = _clamp(_as_int(d.get("spec_match", 0), 0))
+    a = _clamp(_as_int(d.get("authenticity", 0), 0))
+    o = _clamp(_as_int(d.get("originality", 0), 0))
+    return (
+        v == V_GENUINE
+        and c >= conf_t
+        and s >= spec_t
+        and a >= auth_t
+        and o >= orig_t
+    )
+
+
+def _pay_gates(d: dict, gates: tuple) -> tuple:
+    """The directional pass/fail of each gate — what validators must agree on
+    (robust to small numeric wobble between models)."""
+    if not isinstance(d, dict):
+        return (False, False, False, False, False)
+    conf_t, spec_t, auth_t, orig_t = gates
+    v = d.get("verdict") == V_GENUINE
+    c = _clamp(_as_int(d.get("confidence", 0), 0)) >= conf_t
+    s = _clamp(_as_int(d.get("spec_match", 0), 0)) >= spec_t
+    a = _clamp(_as_int(d.get("authenticity", 0), 0)) >= auth_t
+    o = _clamp(_as_int(d.get("originality", 0), 0)) >= orig_t
+    return (v, c, s, a, o)
+
+
+def _courtroom(url: str, spec: str, rules: str, rebuttal: str,
+               is_appeal: bool, gates: tuple) -> dict:
+    """Run the full on-chain AI courtroom over a deliverable and return the
+    ruling as a plain dict. Pure over its arguments — it touches NO contract
+    storage — so it is safe to call from inside a `gl.vm.run_nondet` block on
+    both the leader and every validator, and it is shared by `adjudicate()` and
+    the Skeptics' Market settler `resolve_challenge()` (v0.6).
+
+    Four non-deterministic operations happen here: read the deliverable, a live
+    quoted web search (plagiarism cross-check), the adversarial-briefs pass, and
+    the presiding judge's ruling pass.
+    """
+    # 1) Read the deliverable itself (web read #1).
+    try:
+        page = gl.nondet.web.render(url, mode="text")
+    except Exception:
+        page = ""
+    if len(page.strip()) == 0:
+        return {
+            "verdict": V_UNCLEAR,
+            "confidence": 90,
+            "spec_match": 0,
+            "authenticity": 0,
+            "originality": 0,
+            "cross_check": X_UNKNOWN,
+            "panel": [
+                {"lens": "Intake", "score": 0,
+                 "finding": "The deliverable URL returned no readable content (dead link, empty, or blocked)."},
+            ],
+            "reason": "The deliverable URL returned no readable content (dead link, empty, or blocked).",
+            "prosecution": "No case to argue: the deliverable URL returned no readable content.",
+            "defense": "The defense cannot make a case: there is no readable deliverable to examine.",
+            "payment_approved": False,
+        }
+    evidence = page[:_MAX_EVIDENCE_CHARS]
+
+    # 2) LIVE WEB CROSS-CHECK — a SECOND, independent web read (web read #2).
+    #    Search the open web for a distinctive phrase from the work. If the exact
+    #    phrase surfaces elsewhere, that is concrete external evidence of copying;
+    #    if the search is blocked we degrade to 'no corroboration' rather than
+    #    punishing the worker.
+    phrase = _distinctive_phrase(evidence)
+    cross_text = ""
+    cross_check = X_UNKNOWN
+    try:
+        q = _url_q('"' + phrase + '"')
+        search_url = "https://html.duckduckgo.com/html/?q=" + q
+        cross_text = gl.nondet.web.render(search_url, mode="text")[:_MAX_CROSSCHECK_CHARS]
+        if len(cross_text.strip()) > 0:
+            cross_check = X_HIT if phrase.lower() in cross_text.lower() else X_CLEAN
+    except Exception:
+        cross_text = ""
+        cross_check = X_UNKNOWN
+
+    cross_summary = {
+        X_HIT: "A verbatim copy of a distinctive phrase from this deliverable was FOUND on the open web.",
+        X_CLEAN: "No verbatim copy of a distinctive phrase from this deliverable was found on the open web.",
+        X_UNKNOWN: "No external corroboration was available (the web search returned nothing).",
+    }[cross_check]
+
+    rebuttal_block = (
+        rebuttal.strip() if (is_appeal and len(rebuttal.strip()) > 0)
+        else "(the worker did not file a written rebuttal)"
+    )
+
+    # Shared evidence record both sides and the judge reason over.
+    evidence_record = f"""BOUNTY SPEC (what the worker was asked to deliver):
+{spec}
+
+RULES THE WORKER MUST FOLLOW:
+{rules if len(rules.strip()) > 0 else "(no extra rules beyond producing genuine, original, on-spec work)"}
+
+LIVE WEB CROSS-CHECK:
+Distinctive phrase searched: "{phrase}"
+Result: {cross_summary}
+Raw search excerpt (may be empty):
+\"\"\"
+{cross_text}
+\"\"\"
+
+WORKER'S APPEAL REBUTTAL (admitted into evidence):
+{rebuttal_block}
+
+SUBMITTED DELIVERABLE — text extracted from {url}:
+\"\"\"
+{evidence}
+\"\"\""""
+
+    # 3) STAGE A — ADVERSARIAL BRIEFS (nondet reasoning pass #1).
+    briefs_prompt = f"""You are preparing the ADVERSARIAL BRIEFS for a paid-work authenticity trial.
+From the SAME evidence, write BOTH sides of the case. Each brief must stand on concrete
+evidence quoted or paraphrased from the record — no hand-waving, no appeals to vibe.
+
+PROSECUTION: argue as forcefully as the evidence honestly allows that the deliverable is
+FRAUD — machine-generated (hollow generic phrasing, fabricated specifics, uniform padding),
+plagiarized (verbatim passages, embedded site chrome, or a confirmed web cross-check hit),
+or materially off-spec. If the evidence for fraud is weak, say so plainly rather than inventing it.
+
+DEFENSE: argue as forcefully as the evidence honestly allows that the deliverable is GENUINE,
+original, on-spec human work (specific lived detail, concrete named facts, a real point of view).
+If the worker filed a rebuttal, engage with its strongest point directly. Do not defend the
+indefensible; concede what cannot be defended.
+
+{evidence_record}
+
+Reply with ONLY a JSON object, no prose:
+{{"prosecution": "<2-4 sentences, strongest honest case for FRAUD, citing concrete evidence>",
+  "defense": "<2-4 sentences, strongest honest case for GENUINE, citing concrete evidence and any rebuttal>"}}"""
+    try:
+        briefs = gl.nondet.exec_prompt(briefs_prompt, response_format="json")
+    except Exception:
+        briefs = {}
+    if not isinstance(briefs, dict):
+        briefs = {}
+    prosecution = str(briefs.get("prosecution", ""))[:_MAX_BRIEF_CHARS]
+    defense = str(briefs.get("defense", ""))[:_MAX_BRIEF_CHARS]
+
+    strictness = (
+        "This is an APPEAL of a prior fraud ruling. Re-examine from scratch and OVERTURN "
+        "to GENUINE if the prosecution's case is not backed by concrete evidence; give the "
+        "worker's rebuttal genuine weight."
+        if is_appeal
+        else "This is the first review."
+    )
+
+    # 4) STAGE B — THE RULING (nondet reasoning pass #2).
+    judge_prompt = f"""You are the PRESIDING JUDGE in a paid-work authenticity trial.
+{strictness}
+Two briefs have been filed from the same evidence. Weigh them AGAINST THE EVIDENCE — do not
+simply split the difference. Presume the work is GENUINE and rule for the prosecution only when
+its brief is backed by concrete evidence you can verify in the record. A fair, honest worker must
+be paid; polish alone is NOT evidence of fraud.
+
+PROSECUTION BRIEF:
+{prosecution if len(prosecution) > 0 else "(no prosecution brief was filed)"}
+
+DEFENSE BRIEF:
+{defense if len(defense) > 0 else "(no defense brief was filed)"}
+
+{evidence_record}
+
+Score three independent lenses:
+  • FORENSIC AUTHORSHIP → authenticity 0-100 (100 = unmistakably human).
+  • ORIGINALITY / PLAGIARISM → originality 0-100 (100 = fully original); a confirmed web
+    cross-check hit or embedded site chrome means copied.
+  • SPEC-COMPLIANCE → spec_match 0-100 (genuine work can still be off-spec).
+
+Final verdict (exactly one):
+  • PLAGIARIZED — copied from an external source (verbatim passages, embedded site
+    chrome, or a confirmed web cross-check hit).
+  • AI_GENERATED — concrete hallmarks of machine generation. Polish alone is NOT evidence.
+  • GENUINE — on-topic AND authentic authorship: specific, concrete, first-hand or
+    reasoned detail a real person would actually write.
+  • UNCLEAR — content is empty/unreadable or you truly cannot decide.
+
+Reply with ONLY a JSON object, no prose:
+{{"verdict": "GENUINE" | "AI_GENERATED" | "PLAGIARIZED" | "UNCLEAR",
+  "confidence": <integer 0-100, how sure you are of the verdict>,
+  "spec_match": <integer 0-100>,
+  "authenticity": <integer 0-100 from the Forensic Authorship lens>,
+  "originality": <integer 0-100 from the Originality/Plagiarism lens>,
+  "panel": [
+     {{"lens": "Forensic Authorship", "score": <0-100>, "finding": "<one sentence citing concrete evidence>"}},
+     {{"lens": "Originality", "score": <0-100>, "finding": "<one sentence; reference the web cross-check>"}},
+     {{"lens": "Spec Compliance", "score": <0-100>, "finding": "<one sentence>"}}
+  ],
+  "reason": "<two-sentence ruling that weighs both briefs and cites the strongest concrete evidence>"}}"""
+    res = gl.nondet.exec_prompt(judge_prompt, response_format="json")
+    if not isinstance(res, dict):
+        res = {
+            "verdict": V_UNCLEAR,
+            "confidence": 0,
+            "spec_match": 0,
+            "authenticity": 0,
+            "originality": 0,
+            "panel": [],
+            "reason": "Invalid response format from validator model.",
+        }
+    # Attach the deterministic cross-check outcome, the briefs, and the pay decision.
+    res["cross_check"] = cross_check
+    res["prosecution"] = prosecution
+    res["defense"] = defense
+    # Safety net: a confirmed verbatim web hit floors originality so a model that
+    # under-weights the cross-check still can't pay a copy.
+    if cross_check == X_HIT:
+        res["originality"] = min(_clamp(_as_int(res.get("originality", 0), 0)), 20)
+    res["payment_approved"] = _payment_approved(res, gates)
+    return res
+
+
 @allow_storage
 @dataclass
 class Bounty:
@@ -232,6 +503,37 @@ class Bounty:
     rebuttal: str           # v0.5 worker's written appeal statement (admitted into evidence)
     appealed: bool
     rejected_at: u256       # v0.4.1 epoch secs the bounty entered REJECTED (0 if never)
+    challenge_id: str       # v0.6 id of an open/settled Skeptics' Market challenge ("" if none)
+
+
+@allow_storage
+@dataclass
+class Challenge:
+    """v0.6 Skeptics' Market: a permissionless, staked second opinion on a
+    bounty's resolved verdict, settled by a fresh on-chain AI re-trial.
+
+    Storage is FLAT on purpose — the per-staker ledger lives in `stakes_json`
+    (a JSON string), never a nested DynArray/TreeMap, so the schema generator
+    never has to describe a generic storage struct (avoids the nested-storage
+    deploy failure)."""
+    id: str
+    bounty_id: str
+    opener: str
+    original_verdict: str   # the bounty verdict being second-guessed, snapshotted at open
+    opened_at: u256
+    window_secs: u256
+    status: u8              # C_OPEN / C_RESOLVED / C_VOID
+    pot_genuine: bigint     # total GEN staked on "the work is GENUINE"
+    pot_fake: bigint        # total GEN staked on "the work is FAKE"
+    stakes_json: str        # JSON [{"addr","side","amount"}] — flat per-staker ledger
+    fresh_verdict: str      # verdict from the settling AI re-trial
+    fresh_confidence: u8
+    fresh_reason: str
+    prosecution: str        # re-trial adversarial briefs (stored for transparency)
+    defense: str
+    winning_side: u8        # W_NONE / W_GENUINE / W_FAKE
+    overturned: bool        # did the re-trial flip the original pay/no-pay outcome?
+    resolved_at: u256
 
 
 class Contract(gl.contract.Contract):
@@ -239,6 +541,10 @@ class Contract(gl.contract.Contract):
     bounties: gl.storage.TreeMap[str, Bounty]
     bounty_ids: gl.storage.DynArray[str]
     credits: gl.storage.TreeMap[str, bigint]        # pull-payment ledger: address -> withdrawable GEN
+
+    # v0.6 Skeptics' Market — staked second opinions on resolved verdicts
+    challenges: gl.storage.TreeMap[str, Challenge]
+    challenge_ids: gl.storage.DynArray[str]
 
     # portable reputation, earned from real adjudicated outcomes
     rep_genuine: gl.storage.TreeMap[str, bigint]    # count of GENUINE verdicts per worker
@@ -251,6 +557,8 @@ class Contract(gl.contract.Contract):
     min_authenticity: u8                 # v0.4 min forensic authorship score to approve
     min_originality: u8                  # v0.4 min originality score to approve
     appeal_window_secs: u256             # v0.4.1 protected appeal window after a rejection
+    next_challenge_id: bigint            # v0.6 monotonic id for Skeptics' Market challenges
+    challenge_window_secs: u256          # v0.6 stake window before a challenge can be settled
 
     def __init__(self):
         # Only scalars here. TreeMap / DynArray fields auto-initialize to empty;
@@ -261,6 +569,8 @@ class Contract(gl.contract.Contract):
         self.min_authenticity = u8(55)
         self.min_originality = u8(55)
         self.appeal_window_secs = u256(_DEFAULT_APPEAL_WINDOW_SECS)
+        self.next_challenge_id = bigint(0)
+        self.challenge_window_secs = u256(_DEFAULT_CHALLENGE_WINDOW_SECS)
 
     # ── internal helpers ─────────────────────────────────────────────────────
     def _credit(self, addr: str, amount: bigint) -> None:
@@ -319,6 +629,7 @@ class Contract(gl.contract.Contract):
             rebuttal="",
             appealed=False,
             rejected_at=u256(0),
+            challenge_id="",
         )
         self.bounty_ids.append(bid)
         return bid
@@ -377,232 +688,18 @@ class Contract(gl.contract.Contract):
         url = b.deliverable_url
         rebuttal = b.rebuttal
         is_appeal = b.status == u8(S_APPEALED)
-        conf_threshold = int(self.confidence_threshold)
-        spec_threshold = int(self.min_spec_match)
-        auth_threshold = int(self.min_authenticity)
-        orig_threshold = int(self.min_originality)
+        gates = (
+            int(self.confidence_threshold),
+            int(self.min_spec_match),
+            int(self.min_authenticity),
+            int(self.min_originality),
+        )
 
-        def _payment_approved(d: dict) -> bool:
-            """Approve payment IF AND ONLY IF the verdict is GENUINE and ALL
-            FOUR quality gates clear their thresholds. Adding the authenticity
-            and originality gates (v0.4) means a slick, polished deliverable that
-            the forensic lens still flags as machine-written, or that the
-            originality lens / live cross-check flags as copied, is NOT paid even
-            if it reads as 'on-spec'."""
-            if not isinstance(d, dict):
-                return False
-            v = d.get("verdict")
-            c = _clamp(_as_int(d.get("confidence", 0), 0))
-            s = _clamp(_as_int(d.get("spec_match", 0), 0))
-            a = _clamp(_as_int(d.get("authenticity", 0), 0))
-            o = _clamp(_as_int(d.get("originality", 0), 0))
-            return (
-                v == V_GENUINE
-                and c >= conf_threshold
-                and s >= spec_threshold
-                and a >= auth_threshold
-                and o >= orig_threshold
-            )
-
-        def _pay_gates(d: dict) -> tuple:
-            """The directional pass/fail of each gate — what validators must
-            agree on (robust to small numeric wobble between models)."""
-            if not isinstance(d, dict):
-                return (False, False, False, False, False)
-            v = d.get("verdict") == V_GENUINE
-            c = _clamp(_as_int(d.get("confidence", 0), 0)) >= conf_threshold
-            s = _clamp(_as_int(d.get("spec_match", 0), 0)) >= spec_threshold
-            a = _clamp(_as_int(d.get("authenticity", 0), 0)) >= auth_threshold
-            o = _clamp(_as_int(d.get("originality", 0), 0)) >= orig_threshold
-            return (v, c, s, a, o)
-
-        def _run_courtroom() -> dict:
-            # 1) Read the deliverable itself (web read #1).
-            try:
-                page = gl.nondet.web.render(url, mode="text")
-            except Exception:
-                page = ""
-            if len(page.strip()) == 0:
-                return {
-                    "verdict": V_UNCLEAR,
-                    "confidence": 90,
-                    "spec_match": 0,
-                    "authenticity": 0,
-                    "originality": 0,
-                    "cross_check": X_UNKNOWN,
-                    "panel": [
-                        {"lens": "Intake", "score": 0,
-                         "finding": "The deliverable URL returned no readable content (dead link, empty, or blocked)."},
-                    ],
-                    "reason": "The deliverable URL returned no readable content (dead link, empty, or blocked).",
-                    "prosecution": "No case to argue: the deliverable URL returned no readable content.",
-                    "defense": "The defense cannot make a case: there is no readable deliverable to examine.",
-                    "payment_approved": False,
-                }
-            evidence = page[:_MAX_EVIDENCE_CHARS]
-
-            # 2) LIVE WEB CROSS-CHECK — a SECOND, independent web read (web read #2).
-            #    Search the open web for a distinctive phrase from the work. If
-            #    the exact phrase surfaces elsewhere, that is concrete external
-            #    evidence of copying; if the search is blocked, we degrade to
-            #    'no corroboration' rather than punishing the worker.
-            phrase = _distinctive_phrase(evidence)
-            cross_text = ""
-            cross_check = X_UNKNOWN
-            try:
-                q = _url_q('"' + phrase + '"')
-                search_url = "https://html.duckduckgo.com/html/?q=" + q
-                cross_text = gl.nondet.web.render(search_url, mode="text")[:_MAX_CROSSCHECK_CHARS]
-                if len(cross_text.strip()) > 0:
-                    # A verbatim hit is a strong, machine-checkable plagiarism signal.
-                    cross_check = X_HIT if phrase.lower() in cross_text.lower() else X_CLEAN
-            except Exception:
-                cross_text = ""
-                cross_check = X_UNKNOWN
-
-            cross_summary = {
-                X_HIT: "A verbatim copy of a distinctive phrase from this deliverable was FOUND on the open web.",
-                X_CLEAN: "No verbatim copy of a distinctive phrase from this deliverable was found on the open web.",
-                X_UNKNOWN: "No external corroboration was available (the web search returned nothing).",
-            }[cross_check]
-
-            rebuttal_block = (
-                rebuttal.strip() if (is_appeal and len(rebuttal.strip()) > 0)
-                else "(the worker did not file a written rebuttal)"
-            )
-
-            # Shared evidence record both sides and the judge reason over.
-            evidence_record = f"""BOUNTY SPEC (what the worker was asked to deliver):
-{spec}
-
-RULES THE WORKER MUST FOLLOW:
-{rules if len(rules.strip()) > 0 else "(no extra rules beyond producing genuine, original, on-spec work)"}
-
-LIVE WEB CROSS-CHECK:
-Distinctive phrase searched: "{phrase}"
-Result: {cross_summary}
-Raw search excerpt (may be empty):
-\"\"\"
-{cross_text}
-\"\"\"
-
-WORKER'S APPEAL REBUTTAL (admitted into evidence):
-{rebuttal_block}
-
-SUBMITTED DELIVERABLE — text extracted from {url}:
-\"\"\"
-{evidence}
-\"\"\""""
-
-            # 3) STAGE A — ADVERSARIAL BRIEFS (nondet reasoning pass #1).
-            #    One structured pass argues BOTH sides from the same evidence so
-            #    the judge sees the strongest case for each outcome, not just its
-            #    own first impression.
-            briefs_prompt = f"""You are preparing the ADVERSARIAL BRIEFS for a paid-work authenticity trial.
-From the SAME evidence, write BOTH sides of the case. Each brief must stand on concrete
-evidence quoted or paraphrased from the record — no hand-waving, no appeals to vibe.
-
-PROSECUTION: argue as forcefully as the evidence honestly allows that the deliverable is
-FRAUD — machine-generated (hollow generic phrasing, fabricated specifics, uniform padding),
-plagiarized (verbatim passages, embedded site chrome, or a confirmed web cross-check hit),
-or materially off-spec. If the evidence for fraud is weak, say so plainly rather than inventing it.
-
-DEFENSE: argue as forcefully as the evidence honestly allows that the deliverable is GENUINE,
-original, on-spec human work (specific lived detail, concrete named facts, a real point of view).
-If the worker filed a rebuttal, engage with its strongest point directly. Do not defend the
-indefensible; concede what cannot be defended.
-
-{evidence_record}
-
-Reply with ONLY a JSON object, no prose:
-{{"prosecution": "<2-4 sentences, strongest honest case for FRAUD, citing concrete evidence>",
-  "defense": "<2-4 sentences, strongest honest case for GENUINE, citing concrete evidence and any rebuttal>"}}"""
-            try:
-                briefs = gl.nondet.exec_prompt(briefs_prompt, response_format="json")
-            except Exception:
-                briefs = {}
-            if not isinstance(briefs, dict):
-                briefs = {}
-            prosecution = str(briefs.get("prosecution", ""))[:_MAX_BRIEF_CHARS]
-            defense = str(briefs.get("defense", ""))[:_MAX_BRIEF_CHARS]
-
-            strictness = (
-                "This is an APPEAL of a prior fraud ruling. Re-examine from scratch and OVERTURN "
-                "to GENUINE if the prosecution's case is not backed by concrete evidence; give the "
-                "worker's rebuttal genuine weight."
-                if is_appeal
-                else "This is the first review."
-            )
-
-            # 4) STAGE B — THE RULING (nondet reasoning pass #2).
-            #    The presiding judge weighs both briefs against the evidence and
-            #    scores the SAME three lenses as before, so the pay gates and the
-            #    consensus contract are unchanged.
-            judge_prompt = f"""You are the PRESIDING JUDGE in a paid-work authenticity trial.
-{strictness}
-Two briefs have been filed from the same evidence. Weigh them AGAINST THE EVIDENCE — do not
-simply split the difference. Presume the work is GENUINE and rule for the prosecution only when
-its brief is backed by concrete evidence you can verify in the record. A fair, honest worker must
-be paid; polish alone is NOT evidence of fraud.
-
-PROSECUTION BRIEF:
-{prosecution if len(prosecution) > 0 else "(no prosecution brief was filed)"}
-
-DEFENSE BRIEF:
-{defense if len(defense) > 0 else "(no defense brief was filed)"}
-
-{evidence_record}
-
-Score three independent lenses:
-  • FORENSIC AUTHORSHIP → authenticity 0-100 (100 = unmistakably human).
-  • ORIGINALITY / PLAGIARISM → originality 0-100 (100 = fully original); a confirmed web
-    cross-check hit or embedded site chrome means copied.
-  • SPEC-COMPLIANCE → spec_match 0-100 (genuine work can still be off-spec).
-
-Final verdict (exactly one):
-  • PLAGIARIZED — copied from an external source (verbatim passages, embedded site
-    chrome, or a confirmed web cross-check hit).
-  • AI_GENERATED — concrete hallmarks of machine generation. Polish alone is NOT evidence.
-  • GENUINE — on-topic AND authentic authorship: specific, concrete, first-hand or
-    reasoned detail a real person would actually write.
-  • UNCLEAR — content is empty/unreadable or you truly cannot decide.
-
-Reply with ONLY a JSON object, no prose:
-{{"verdict": "GENUINE" | "AI_GENERATED" | "PLAGIARIZED" | "UNCLEAR",
-  "confidence": <integer 0-100, how sure you are of the verdict>,
-  "spec_match": <integer 0-100>,
-  "authenticity": <integer 0-100 from the Forensic Authorship lens>,
-  "originality": <integer 0-100 from the Originality/Plagiarism lens>,
-  "panel": [
-     {{"lens": "Forensic Authorship", "score": <0-100>, "finding": "<one sentence citing concrete evidence>"}},
-     {{"lens": "Originality", "score": <0-100>, "finding": "<one sentence; reference the web cross-check>"}},
-     {{"lens": "Spec Compliance", "score": <0-100>, "finding": "<one sentence>"}}
-  ],
-  "reason": "<two-sentence ruling that weighs both briefs and cites the strongest concrete evidence>"}}"""
-            res = gl.nondet.exec_prompt(judge_prompt, response_format="json")
-            if not isinstance(res, dict):
-                res = {
-                    "verdict": V_UNCLEAR,
-                    "confidence": 0,
-                    "spec_match": 0,
-                    "authenticity": 0,
-                    "originality": 0,
-                    "panel": [],
-                    "reason": "Invalid response format from validator model.",
-                }
-            # Attach the deterministic cross-check outcome, the briefs, and the pay decision.
-            res["cross_check"] = cross_check
-            res["prosecution"] = prosecution
-            res["defense"] = defense
-            # Safety net: a confirmed verbatim web hit floors originality so a
-            # model that under-weights the cross-check still can't pay a copy.
-            if cross_check == X_HIT:
-                res["originality"] = min(_clamp(_as_int(res.get("originality", 0), 0)), 20)
-            res["payment_approved"] = _payment_approved(res)
-            return res
-
+        # The adversarial AI courtroom lives in a module-level function (`_courtroom`)
+        # so the leader and every validator run the exact same logic, and so the
+        # Skeptics' Market settler (`resolve_challenge`, v0.6) can reuse it verbatim.
         def leader_fn():
-            return _run_courtroom()
+            return _courtroom(url, spec, rules, rebuttal, is_appeal, gates)
 
         def validator_fn(res) -> bool:
             # Leader must have returned successfully.
@@ -611,7 +708,7 @@ Reply with ONLY a JSON object, no prose:
             leader = res.calldata
             if not isinstance(leader, dict):
                 return False
-            mine = _run_courtroom()
+            mine = _courtroom(url, spec, rules, rebuttal, is_appeal, gates)
             if not isinstance(mine, dict):
                 return False
 
@@ -624,7 +721,7 @@ Reply with ONLY a JSON object, no prose:
             # same directional outcome on each gate. This is what lets two honest
             # models agree while any real disagreement on meaning blocks consensus.
             verdict_match = mine.get("verdict") == leader.get("verdict")
-            gates_match = _pay_gates(mine) == _pay_gates(leader)
+            gates_match = _pay_gates(mine, gates) == _pay_gates(leader, gates)
             return verdict_match and gates_match
 
         # gl.vm.run_nondet is the recommended API (sandboxes validator errors).
@@ -661,7 +758,7 @@ Reply with ONLY a JSON object, no prose:
         b.prosecution = prosecution
         b.defense = defense
 
-        approve = _payment_approved(result)
+        approve = _payment_approved(result, gates)
 
         if approve:
             b.status = u8(S_APPROVED)
@@ -743,6 +840,227 @@ Reply with ONLY a JSON object, no prose:
         # Native GEN transfer to the caller's EOA via the chain-layer external message.
         _Recipient(gl.Address(addr)).emit_transfer(value=u256(amount))
 
+    # ── v0.6 Skeptics' Market: staked second opinions on resolved verdicts ─────
+    def _resolved_stance(self, b: Bounty) -> str:
+        """The bounty's settled stance expressed as a market side: GENUINE if the
+        jury approved and paid the worker, FAKE if fraud was the resolved outcome."""
+        return SIDE_GENUINE if b.status == u8(S_APPROVED) else SIDE_FAKE
+
+    @gl.public.write.payable
+    def open_challenge(self, bounty_id: str, side: str) -> str:
+        """Open a staked second opinion on a bounty whose verdict is already
+        settled. The opener puts native GEN behind GENUINE (the work is real) or
+        FAKE (the work is fraud). Anyone can then back either side until the stake
+        window closes, after which `resolve_challenge` settles it with a fresh,
+        trustless on-chain AI re-trial."""
+        b = self._get(bounty_id)
+        if b.status not in (u8(S_APPROVED), u8(S_RESOLVED_FRAUD)):
+            raise gl.vm.UserError("only a resolved bounty (paid or fraud) can be challenged")
+        if b.challenge_id != "":
+            raise gl.vm.UserError("this bounty already has a challenge; stake on it with back_challenge")
+        norm = side.strip().upper()
+        if norm not in (SIDE_GENUINE, SIDE_FAKE):
+            raise gl.vm.UserError("side must be 'GENUINE' or 'FAKE'")
+        if gl.message.value <= 0:
+            raise gl.vm.UserError("must stake native GEN to open a challenge")
+
+        cid = str(self.next_challenge_id)
+        self.next_challenge_id = self.next_challenge_id + bigint(1)
+        staker = _addr_str(gl.message.sender_address)
+        amount = bigint(gl.message.value)
+        stakes = [{"addr": staker, "side": norm, "amount": str(amount)}]
+
+        self.challenges[cid] = Challenge(
+            id=cid,
+            bounty_id=bounty_id,
+            opener=staker,
+            original_verdict=self._resolved_stance(b),
+            opened_at=u256(_now_epoch()),
+            window_secs=u256(int(self.challenge_window_secs)),
+            status=u8(C_OPEN),
+            pot_genuine=amount if norm == SIDE_GENUINE else bigint(0),
+            pot_fake=amount if norm == SIDE_FAKE else bigint(0),
+            stakes_json=json.dumps(stakes),
+            fresh_verdict="",
+            fresh_confidence=u8(0),
+            fresh_reason="",
+            prosecution="",
+            defense="",
+            winning_side=u8(W_NONE),
+            overturned=False,
+            resolved_at=u256(0),
+        )
+        self.challenge_ids.append(cid)
+        b.challenge_id = cid
+        return cid
+
+    @gl.public.write.payable
+    def back_challenge(self, bounty_id: str, side: str) -> None:
+        """Stake native GEN on either side of an open challenge while its window
+        is still open."""
+        b = self._get(bounty_id)
+        if b.challenge_id == "":
+            raise gl.vm.UserError("no challenge is open on this bounty")
+        ch = self._get_challenge(b.challenge_id)
+        if ch.status != u8(C_OPEN):
+            raise gl.vm.UserError("this challenge has already been settled")
+        if _now_epoch() >= int(ch.opened_at) + int(ch.window_secs):
+            raise gl.vm.UserError("the stake window has closed; settle the challenge instead")
+        norm = side.strip().upper()
+        if norm not in (SIDE_GENUINE, SIDE_FAKE):
+            raise gl.vm.UserError("side must be 'GENUINE' or 'FAKE'")
+        if gl.message.value <= 0:
+            raise gl.vm.UserError("must stake native GEN")
+
+        staker = _addr_str(gl.message.sender_address)
+        amount = bigint(gl.message.value)
+        try:
+            stakes = json.loads(ch.stakes_json)
+        except Exception:
+            stakes = []
+        stakes.append({"addr": staker, "side": norm, "amount": str(amount)})
+        ch.stakes_json = json.dumps(stakes)
+        if norm == SIDE_GENUINE:
+            ch.pot_genuine = ch.pot_genuine + amount
+        else:
+            ch.pot_fake = ch.pot_fake + amount
+
+    @gl.public.write
+    def resolve_challenge(self, bounty_id: str) -> str:
+        """Settle an open challenge after its stake window closes by running the
+        SAME on-chain AI courtroom again as a trustless settler. The side the
+        fresh ruling agrees with wins and splits the whole pot pro-rata; an
+        overturn also rewrites the worker's portable on-chain reputation."""
+        b = self._get(bounty_id)
+        if b.challenge_id == "":
+            raise gl.vm.UserError("no challenge is open on this bounty")
+        ch = self._get_challenge(b.challenge_id)
+        if ch.status != u8(C_OPEN):
+            raise gl.vm.UserError("this challenge has already been settled")
+        if _now_epoch() < int(ch.opened_at) + int(ch.window_secs):
+            raise gl.vm.UserError("the stake window is still open; cannot settle yet")
+
+        # Read evidence from storage BEFORE the non-deterministic block.
+        spec = b.spec
+        rules = b.rules
+        url = b.deliverable_url
+        gates = (
+            int(self.confidence_threshold),
+            int(self.min_spec_match),
+            int(self.min_authenticity),
+            int(self.min_originality),
+        )
+
+        # The settling re-trial is a FRESH skeptical review (no worker rebuttal,
+        # not an appeal) — the exact same `_courtroom` the jury itself runs.
+        def leader_fn():
+            return _courtroom(url, spec, rules, "", False, gates)
+
+        def validator_fn(res) -> bool:
+            if not isinstance(res, gl.vm.Return):
+                return False
+            leader = res.calldata
+            if not isinstance(leader, dict):
+                return False
+            mine = _courtroom(url, spec, rules, "", False, gates)
+            if not isinstance(mine, dict):
+                return False
+            # Validators must agree on the SETTLEMENT: the verdict AND every pay
+            # gate, which together fix which side of the market wins. Same
+            # meaning-not-shape consensus the jury uses.
+            verdict_match = mine.get("verdict") == leader.get("verdict")
+            gates_match = _pay_gates(mine, gates) == _pay_gates(leader, gates)
+            return verdict_match and gates_match
+
+        result = gl.vm.run_nondet(leader_fn, validator_fn)
+        if not isinstance(result, dict):
+            result = {}
+
+        verdict = result.get("verdict", V_UNCLEAR)
+        confidence = _clamp(_as_int(result.get("confidence", 0), 0))
+        reason = str(result.get("reason", ""))[:1000]
+        prosecution = str(result.get("prosecution", ""))[:_MAX_BRIEF_CHARS]
+        defense = str(result.get("defense", ""))[:_MAX_BRIEF_CHARS]
+        pays = _payment_approved(result, gates)
+
+        ch.fresh_verdict = verdict
+        ch.fresh_confidence = u8(confidence)
+        ch.fresh_reason = reason
+        ch.prosecution = prosecution
+        ch.defense = defense
+        ch.resolved_at = u256(_now_epoch())
+
+        # Map the fresh ruling onto a market side. A payable GENUINE ruling means
+        # the GENUINE side wins; a fraud ruling (AI_GENERATED / PLAGIARIZED) means
+        # FAKE wins. UNCLEAR or an indeterminate ruling can't pick a winner → VOID
+        # and refund everyone.
+        if verdict == V_GENUINE and pays:
+            win_side = SIDE_GENUINE
+        elif verdict in (V_AI, V_PLAGIARIZED):
+            win_side = SIDE_FAKE
+        else:
+            win_side = ""
+
+        self._settle_challenge(ch, win_side)
+
+        # Reputation correction — the teeth of the market. If the fresh ruling
+        # flips the bounty's original stance, rewrite the worker's portable
+        # on-chain reputation: a staked crowd + a fresh AI panel can overturn the
+        # permanent record, not merely win a side bet.
+        overturned = (win_side != "" and win_side != ch.original_verdict)
+        ch.overturned = overturned
+        if overturned and b.worker != "":
+            if win_side == SIDE_GENUINE:
+                self._bump_rep_genuine(b.worker, bigint(0))
+            else:
+                self._bump_rep_fraud(b.worker)
+
+        return verdict
+
+    def _settle_challenge(self, ch: Challenge, win_side: str) -> None:
+        """Credit the challenge pot to the pull-payment ledger. Winners split the
+        WHOLE pot pro-rata to their winning-side stake; a VOID (UNCLEAR ruling or
+        no opposing stake) refunds every staker their own stake."""
+        try:
+            stakes = json.loads(ch.stakes_json)
+        except Exception:
+            stakes = []
+        pot_total = ch.pot_genuine + ch.pot_fake
+
+        if win_side == "":
+            ch.status = u8(C_VOID)
+            ch.winning_side = u8(W_NONE)
+            for s in stakes:
+                self._credit(str(s.get("addr", "")), bigint(int(s.get("amount", "0"))))
+            return
+
+        win_pot = ch.pot_genuine if win_side == SIDE_GENUINE else ch.pot_fake
+        ch.status = u8(C_RESOLVED)
+        ch.winning_side = u8(W_GENUINE if win_side == SIDE_GENUINE else W_FAKE)
+
+        if win_pot <= 0:
+            # No one backed the winning side — nobody to pay the pot to. Refund all
+            # (keeps the contract solvent and never strands stakes).
+            for s in stakes:
+                self._credit(str(s.get("addr", "")), bigint(int(s.get("amount", "0"))))
+            return
+
+        # Pro-rata split of the whole pot. Integer math; the last winner absorbs
+        # any rounding dust so the full pot is always distributed (no leak).
+        winners = [s for s in stakes if str(s.get("side", "")).upper() == win_side]
+        n = len(winners)
+        distributed = bigint(0)
+        i = 0
+        for s in winners:
+            i = i + 1
+            stake_amt = bigint(int(s.get("amount", "0")))
+            if i == n:
+                share = pot_total - distributed
+            else:
+                share = (pot_total * stake_amt) // win_pot
+                distributed = distributed + share
+            self._credit(str(s.get("addr", "")), share)
+
     # ── views ─────────────────────────────────────────────────────────────────
     def _get(self, bounty_id: str) -> Bounty:
         if bounty_id not in self.bounties:
@@ -781,6 +1099,45 @@ Reply with ONLY a JSON object, no prose:
             "rejected_at": int(b.rejected_at),
             "finalizable_at": (int(b.rejected_at) + int(self.appeal_window_secs)) if int(b.rejected_at) > 0 else 0,
             "appeal_window_secs": int(self.appeal_window_secs),
+            "challenge_id": b.challenge_id,
+        }
+
+    def _get_challenge(self, cid: str) -> Challenge:
+        if cid not in self.challenges:
+            raise gl.vm.UserError("challenge not found")
+        return self.challenges[cid]
+
+    def _challenge_to_dict(self, ch: Challenge) -> dict:
+        try:
+            stakes = json.loads(ch.stakes_json)
+        except Exception:
+            stakes = []
+        now = _now_epoch()
+        closes_at = int(ch.opened_at) + int(ch.window_secs)
+        is_open = ch.status == u8(C_OPEN)
+        return {
+            "id": ch.id,
+            "bounty_id": ch.bounty_id,
+            "opener": ch.opener,
+            "original_verdict": ch.original_verdict,
+            "opened_at": int(ch.opened_at),
+            "window_secs": int(ch.window_secs),
+            "closes_at": closes_at,
+            "open_now": is_open and now < closes_at,
+            "settleable": is_open and now >= closes_at,
+            "status": int(ch.status),
+            "pot_genuine": str(ch.pot_genuine),
+            "pot_fake": str(ch.pot_fake),
+            "pot_total": str(ch.pot_genuine + ch.pot_fake),
+            "stakes": stakes,
+            "fresh_verdict": ch.fresh_verdict,
+            "fresh_confidence": int(ch.fresh_confidence),
+            "fresh_reason": ch.fresh_reason,
+            "prosecution": ch.prosecution,
+            "defense": ch.defense,
+            "winning_side": int(ch.winning_side),
+            "overturned": ch.overturned,
+            "resolved_at": int(ch.resolved_at),
         }
 
     @gl.public.view
@@ -816,6 +1173,26 @@ Reply with ONLY a JSON object, no prose:
         return str(amount)
 
     @gl.public.view
+    def get_challenge(self, bounty_id: str) -> str:
+        """The Skeptics' Market challenge for a bounty (or JSON null if none)."""
+        b = self._get(bounty_id)
+        if b.challenge_id == "" or b.challenge_id not in self.challenges:
+            return json.dumps(None)
+        return json.dumps(self._challenge_to_dict(self.challenges[b.challenge_id]))
+
+    @gl.public.view
+    def get_challenge_by_id(self, challenge_id: str) -> str:
+        return json.dumps(self._challenge_to_dict(self._get_challenge(challenge_id)))
+
+    @gl.public.view
+    def get_all_challenges(self) -> str:
+        out = []
+        for cid in self.challenge_ids:
+            if cid in self.challenges:
+                out.append(self._challenge_to_dict(self.challenges[cid]))
+        return json.dumps(out)
+
+    @gl.public.view
     def get_config(self) -> str:
         return json.dumps({
             "confidence_threshold": int(self.confidence_threshold),
@@ -823,5 +1200,7 @@ Reply with ONLY a JSON object, no prose:
             "min_authenticity": int(self.min_authenticity),
             "min_originality": int(self.min_originality),
             "appeal_window_secs": int(self.appeal_window_secs),
+            "challenge_window_secs": int(self.challenge_window_secs),
             "total_bounties": int(self.next_id),
+            "total_challenges": int(self.next_challenge_id),
         })
