@@ -2,7 +2,7 @@ import { defineChain } from 'viem';
 
 // Fallbacks keep the app pointed at the live contracts if a build env var is missing.
 export const GEN_CONTRACT =
-  import.meta.env.VITE_CONTRACT_ADDRESS || '0x8EFD51C83e606B1adCd95E14b73DD17967Ef20F0';
+  import.meta.env.VITE_CONTRACT_ADDRESS || '0x1fC085D937fbDCee73f9c4C5A1bcB767346716Fe';
 export const ARC_CONTRACT =
   import.meta.env.VITE_ARC_CONTRACT_ADDRESS || '0xd898EF839DE88dE38113f0560F8fEBEff73D09c8';
 
@@ -28,7 +28,7 @@ export const CHAINS = {
     explorer: 'https://explorer-studio-dev.genlayer.com',
     explorerAddr: (a) => `https://explorer-studio-dev.genlayer.com/address/${a}`,
     verdictSource: 'decided by validator consensus',
-    cap: { canRunJury: true, hasAppeal: true, hasCancel: true, hasReputation: true, hasFinalize: true },
+    cap: { canRunJury: true, hasAppeal: true, hasCancel: true, hasReputation: true, hasFinalize: true, hasMarket: true },
   },
   arc: {
     key: 'arc',
@@ -39,7 +39,7 @@ export const CHAINS = {
     explorer: 'https://testnet.arcscan.app',
     explorerAddr: (a) => `https://testnet.arcscan.app/address/${a}`,
     verdictSource: 'relayed from the GenLayer jury, settled in USDC',
-    cap: { canRunJury: false, hasAppeal: false, hasCancel: false, hasReputation: false, hasFinalize: false },
+    cap: { canRunJury: false, hasAppeal: false, hasCancel: false, hasReputation: false, hasFinalize: false, hasMarket: false },
   },
 };
 

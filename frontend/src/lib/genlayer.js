@@ -1,9 +1,10 @@
 import { createClient } from 'genlayer-js';
 import { studioDevnet } from 'genlayer-js/chains';
 
-// v0.5.0 (AI Courtroom — adversarial deliberation) on GenLayer Studio Next. Env var wins; the literal
-// is a safe fallback so the app still points at the live contract if the build env is missing.
-const CONTRACT_FALLBACK = '0x8EFD51C83e606B1adCd95E14b73DD17967Ef20F0';
+// v0.6.0 (Skeptics' Market — staked, AI-settled second opinions) on GenLayer Studio Next.
+// Env var wins; the literal is a safe fallback so the app still points at the live contract
+// if the build env is missing.
+const CONTRACT_FALLBACK = '0x1fC085D937fbDCee73f9c4C5A1bcB767346716Fe';
 export const CONTRACT = import.meta.env.VITE_CONTRACT_ADDRESS || CONTRACT_FALLBACK;
 
 export function contractConfigured() {
@@ -69,6 +70,19 @@ export async function fetchBounties() {
 export async function fetchBounty(id) {
   const raw = await read('get_bounty', [String(id)]);
   return typeof raw === 'string' ? parse(raw, null) : raw;
+}
+
+// v0.6 Skeptics' Market reads.
+export async function fetchChallenge(bountyId) {
+  const raw = await read('get_challenge', [String(bountyId)]);
+  const val = typeof raw === 'string' ? parse(raw, null) : raw;
+  return val || null;
+}
+
+export async function fetchAllChallenges() {
+  const raw = await read('get_all_challenges', []);
+  const list = typeof raw === 'string' ? parse(raw, []) : raw || [];
+  return [...list].sort((a, b) => Number(b.id) - Number(a.id));
 }
 
 export async function fetchReputation(address) {
